@@ -1,0 +1,118 @@
+{% extends "base.html" %} {% block title %}勤怠打刻 - 勤怠システム{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-8">
+    <div class="card shadow">
+      <div class="card-header bg-primary text-white">
+        <h3 class="card-title mb-0">
+          <i class="fas fa-clock me-2"></i>勤怠打刻
+        </h3>
+      </div>
+      <div class="card-body">
+        <div class="text-center mb-4">
+          <h4 class="text-muted">{{ today }}</h4>
+          <p class="text-muted">今日の勤怠を打刻してください</p>
+        </div>
+
+        <div class="row">
+          <div class="col-md-6">
+            <div class="card border-primary">
+              <div class="card-header bg-primary text-white text-center">
+                <h5 class="mb-0">出勤</h5>
+              </div>
+              <div class="card-body text-center">
+                <div class="mb-3">
+                  <h6 class="text-muted">現在時刻</h6>
+                  <h4 id="current-time" class="text-primary"></h4>
+                </div>
+                <button
+                  type="button"
+                  class="btn btn-success btn-lg"
+                  onclick="punchTime('{{ today }}', 'check_in')"
+                >
+                  <i class="fas fa-sign-in-alt me-2"></i>出勤打刻
+                </button>
+                {% if check_in %}
+                <div class="mt-3">
+                  <small class="text-muted">打刻時刻</small>
+                  <h5 class="text-success">{{ check_in }}</h5>
+                </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+          <div class="col-md-6">
+            <div class="card border-secondary">
+              <div class="card-header bg-secondary text-white text-center">
+                <h5 class="mb-0">退勤</h5>
+              </div>
+              <div class="card-body text-center">
+                <div class="mb-3">
+                  <h6 class="text-muted">現在時刻</h6>
+                  <h4 id="current-time-2" class="text-secondary"></h4>
+                </div>
+                <button
+                  type="button"
+                  class="btn btn-warning btn-lg"
+                  onclick="punchTime('{{ today }}', 'check_out')"
+                >
+                  <i class="fas fa-sign-out-alt me-2"></i>退勤打刻
+                </button>
+                {% if check_out %}
+                <div class="mt-3">
+                  <small class="text-muted">打刻時刻</small>
+                  <h5 class="text-warning">{{ check_out }}</h5>
+                </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="text-center mt-4">
+          <a href="{{ url_for('attendance_info') }}" class="btn btn-info me-2">
+            <i class="fas fa-chart-bar me-1"></i>勤怠情報を見る
+          </a>
+          <a href="{{ url_for('attendance') }}" class="btn btn-primary">
+            <i class="fas fa-edit me-1"></i>勤怠入力
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %} {% block scripts %}
+<script>
+  function updateTime() {
+    const now = new Date();
+    const timeString = now.toLocaleTimeString("ja-JP", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+    document.getElementById("current-time").textContent = timeString;
+    document.getElementById("current-time-2").textContent = timeString;
+  }
+
+  function punchTime(dateStr, field) {
+    fetch("/api/punch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date: dateStr, field: field }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) {
+          location.reload();
+        } else {
+          alert("打刻に失敗しました");
+        }
+      });
+  }
+
+  // 1秒ごとに時刻を更新
+  setInterval(updateTime, 1000);
+  updateTime();
+</script>
+{% endblock %}
