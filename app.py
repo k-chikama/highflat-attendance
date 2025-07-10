@@ -7,6 +7,7 @@ import json
 from dateutil.relativedelta import relativedelta
 from math import floor
 import requests
+from firebase_config import firebase_db
 
 # jpholidayのインポートを安全に行う
 try:
@@ -29,25 +30,52 @@ USE_GIST = bool(GIST_ID and GITHUB_TOKEN)
 
 def load_data():
     """勤怠データを読み込む"""
+    print(f"DEBUG: Firebase利用可能 = {firebase_db.is_available()}")
     print(f"DEBUG: GIST_ID = {GIST_ID}")
     print(f"DEBUG: GITHUB_TOKEN = {'設定済み' if GITHUB_TOKEN else '未設定'}")
     print(f"DEBUG: USE_GIST = {USE_GIST}")
     
+    # Firebase優先で試行
+    if firebase_db.is_available():
+        data = firebase_db.load_data()
+        if data:  # Firebaseから正常にデータを取得できた場合
+            return data
+    
+    # Firebaseが失敗した場合、Gistを試行
     if USE_GIST:
         return load_data_from_gist()
-    else:
-        if os.path.exists(DATA_FILE):
-            with open(DATA_FILE, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        return {}
+    
+    # 最後にローカルファイル（開発環境のみ）
+    if os.path.exists(DATA_FILE):
+        with open(DATA_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    
+    return {}
 
 def save_data(data):
     """勤怠データを保存する"""
-    if USE_GIST:
+    saved = False
+    
+    # Firebase優先で保存
+    if firebase_db.is_available():
+        if firebase_db.save_data(data):
+            saved = True
+            print("DEBUG: Firebaseに保存成功")
+    
+    # Firebaseが失敗した場合、Gistに保存
+    if not saved and USE_GIST:
         save_data_to_gist(data)
-    else:
-        with open(DATA_FILE, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        saved = True
+        print("DEBUG: Gistに保存成功")
+    
+    # 開発環境ではローカルファイルにも保存
+    if not saved:
+        try:
+            with open(DATA_FILE, 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            print("DEBUG: ローカルファイルに保存成功")
+        except Exception as e:
+            print(f"ERROR: ローカル保存失敗 - {str(e)}")
 
 def load_data_from_gist():
     """GitHub Gistからデータを読み込む"""
@@ -630,6 +658,8 @@ def api_save_field():
 def debug_env():
     """環境変数デバッグ用"""
     return jsonify({
+        'FIREBASE_URL': os.environ.get('FIREBASE_URL'),
+        'FIREBASE_AVAILABLE': firebase_db.is_available(),
         'GIST_ID': GIST_ID,
         'GITHUB_TOKEN_SET': bool(GITHUB_TOKEN),
         'GITHUB_TOKEN_PREFIX': GITHUB_TOKEN[:20] + '...' if GITHUB_TOKEN else None,
