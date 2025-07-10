@@ -104,11 +104,20 @@
       .then((res) => res.json())
       .then((data) => {
         if (data.success) {
-          // 打刻成功後、勤怠入力画面にリダイレクト
-          window.location.href = "/attendance";
+          // 打刻成功後、ページをリロードして打刻時刻を表示
+          alert(
+            `${field === "check_in" ? "出勤" : "退勤"}打刻が完了しました（${
+              data.time
+            }）`
+          );
+          window.location.reload();
         } else {
           alert("打刻に失敗しました");
         }
+      })
+      .catch((error) => {
+        console.error("打刻エラー:", error);
+        alert("打刻に失敗しました");
       });
   }
 
