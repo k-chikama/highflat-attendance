@@ -562,33 +562,56 @@ def api_save_attendance():
 
 @app.route('/api/punch', methods=['POST'])
 def api_punch():
-    print("DEBUG: 打刻API呼び出し開始")
-    data = load_data()
-    req = request.get_json()
-    date_str = req.get('date')
-    field = req.get('field')  # 'check_in' or 'check_out'
-    print(f"DEBUG: date_str={date_str}, field={field}")
+    try:
+        print("DEBUG: 打刻API呼び出し開始")
+        print(f"DEBUG: リクエストメソッド={request.method}")
+        print(f"DEBUG: Content-Type={request.content_type}")
+        
+        data = load_data()
+        print("DEBUG: データロード完了")
+        
+        req = request.get_json()
+        print(f"DEBUG: リクエストJSON={req}")
+        
+        if not req:
+            print("ERROR: JSONデータが空です")
+            return jsonify({'success': False, 'error': 'No JSON data'}), 400
+            
+        date_str = req.get('date')
+        field = req.get('field')  # 'check_in' or 'check_out'
+        print(f"DEBUG: date_str={date_str}, field={field}")
 
-    # 現在時刻を15分単位で四捨五入
-    now = datetime.now()
-    minute = now.minute
-    # 四捨五入: 0-7→0, 8-22→15, 23-37→30, 38-52→45, 53-59→+1h,0
-    round_min = int(15 * round(minute / 15))
-    if round_min == 60:
-        punch_time = now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
-    else:
-        punch_time = now.replace(minute=round_min, second=0, microsecond=0)
-    time_str = punch_time.strftime('%H:%M')
-    print(f"DEBUG: 打刻時刻={time_str}")
+        if not date_str or not field:
+            print(f"ERROR: 必須パラメータ不足 - date_str={date_str}, field={field}")
+            return jsonify({'success': False, 'error': 'Missing parameters'}), 400
 
-    if date_str not in data:
-        data[date_str] = {}
-    data[date_str][field] = time_str
-    print(f"DEBUG: 保存前データ={data.get(date_str, {})}")
-    save_data(data)
-    print("DEBUG: データ保存完了")
-    
-    return jsonify({'success': True, 'time': time_str})
+        # 現在時刻を15分単位で四捨五入
+        now = datetime.now()
+        minute = now.minute
+        # 四捨五入: 0-7→0, 8-22→15, 23-37→30, 38-52→45, 53-59→+1h,0
+        round_min = int(15 * round(minute / 15))
+        if round_min == 60:
+            punch_time = now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
+        else:
+            punch_time = now.replace(minute=round_min, second=0, microsecond=0)
+        time_str = punch_time.strftime('%H:%M')
+        print(f"DEBUG: 打刻時刻={time_str}")
+
+        if date_str not in data:
+            data[date_str] = {}
+        data[date_str][field] = time_str
+        print(f"DEBUG: 保存前データ={data.get(date_str, {})}")
+        
+        save_data(data)
+        print("DEBUG: データ保存完了")
+        
+        return jsonify({'success': True, 'time': time_str})
+        
+    except Exception as e:
+        print(f"ERROR: 打刻API例外発生 - {str(e)}")
+        import traceback
+        print(f"ERROR: トレースバック - {traceback.format_exc()}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/save_field', methods=['POST'])
 def api_save_field():
