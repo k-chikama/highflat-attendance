@@ -74,9 +74,19 @@
           <a href="{{ url_for('attendance_info') }}" class="btn btn-info me-2">
             <i class="fas fa-chart-bar me-1"></i>勤怠情報を見る
           </a>
-          <a href="{{ url_for('attendance') }}" class="btn btn-primary">
+          <a href="{{ url_for('attendance') }}" class="btn btn-primary me-2">
             <i class="fas fa-edit me-1"></i>勤怠入力
           </a>
+          <a href="{{ url_for('logout') }}" class="btn btn-outline-secondary">
+            <i class="fas fa-sign-out-alt me-1"></i>ログアウト
+          </a>
+        </div>
+
+        <div class="text-center mt-3">
+          <small class="text-muted">
+            <i class="fas fa-user me-1"></i>
+            ユーザー: {{ current_user }}
+          </small>
         </div>
       </div>
     </div>

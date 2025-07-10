@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, send_file, jsonify
+from flask import Flask, render_template, request, redirect, url_for, send_file, jsonify, session
 from datetime import datetime, timedelta
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
@@ -8,6 +8,7 @@ from dateutil.relativedelta import relativedelta
 from math import floor
 import requests
 from firebase_config import firebase_db
+from auth import auth_manager, login_required
 
 # jpholidayのインポートを安全に行う
 try:
@@ -18,7 +19,8 @@ except (ImportError, TypeError) as e:
     JPHOLIDAY_AVAILABLE = False
 
 app = Flask(__name__)
-app.secret_key = 'your-secret-key-here'
+# セッション用の秘密鍵（環境変数から取得、なければランダム生成）
+app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
 
 # データファイルのパス
 DATA_FILE = 'attendance_data.json'
@@ -28,8 +30,24 @@ GIST_ID = os.environ.get('GIST_ID')
 GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN')
 USE_GIST = bool(GIST_ID and GITHUB_TOKEN)
 
+def load_user_data(username: str):
+    """特定ユーザーの勤怠データを読み込む"""
+    all_data = load_data()
+    return all_data.get('users', {}).get(username, {})
+
+def save_user_data(username: str, user_data: dict):
+    """特定ユーザーの勤怠データを保存する"""
+    all_data = load_data()
+    if 'users' not in all_data:
+        all_data['users'] = {}
+    if username not in all_data['users']:
+        all_data['users'][username] = {}
+    
+    all_data['users'][username] = user_data
+    save_data(all_data)
+
 def load_data():
-    """勤怠データを読み込む"""
+    """全体勤怠データを読み込む"""
     print(f"DEBUG: Firebase利用可能 = {firebase_db.is_available()}")
     print(f"DEBUG: GIST_ID = {GIST_ID}")
     print(f"DEBUG: GITHUB_TOKEN = {'設定済み' if GITHUB_TOKEN else '未設定'}")
@@ -53,7 +71,7 @@ def load_data():
     return {}
 
 def save_data(data):
-    """勤怠データを保存する"""
+    """全体勤怠データを保存する"""
     saved = False
     
     # Firebase優先で保存
@@ -459,19 +477,54 @@ def create_excel_report(year, month, data, username):
     wb.save(filename)
     return filename
 
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    """ログイン画面"""
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        
+        if auth_manager.verify_password(username, password):
+            auth_manager.login_user(username)
+            return redirect(url_for('index'))
+        else:
+            return render_template('login.html', error='ユーザー名またはパスワードが間違っています')
+    
+    # 既にログイン済みの場合はホームにリダイレクト
+    if auth_manager.is_logged_in():
+        return redirect(url_for('index'))
+    
+    return render_template('login.html')
+
+@app.route('/logout')
+def logout():
+    """ログアウト"""
+    auth_manager.logout_user()
+    return redirect(url_for('login'))
+
 @app.route('/')
+@login_required
 def index():
     """勤怠打刻画面（ホーム）"""
-    today = datetime.now().strftime('%Y-%m-%d')
-    data = load_data()
+    from datetime import timezone
+    
+    # 日本時間で今日の日付を取得
+    jst = timezone(timedelta(hours=9))
+    today = datetime.now(jst).strftime('%Y-%m-%d')
+    
+    # 現在のユーザーのデータを取得
+    current_user = auth_manager.get_current_user()
+    data = load_user_data(current_user)
     today_data = data.get(today, {})
     
     return render_template('punch.html', 
                          today=today,
+                         current_user=current_user,
                          check_in=today_data.get('check_in', ''),
                          check_out=today_data.get('check_out', ''))
 
 @app.route('/attendance_info')
+@login_required
 def attendance_info():
     """勤怠情報ページ"""
     year = int(request.args.get('year', datetime.now().year))
@@ -509,6 +562,7 @@ def attendance_info():
                          today=datetime.now().strftime('%Y-%m-%d'))
 
 @app.route('/attendance')
+@login_required
 def attendance():
     """勤怠入力ページ"""
     year = int(request.args.get('year', datetime.now().year))
@@ -589,14 +643,18 @@ def api_save_attendance():
     return jsonify({'success': True})
 
 @app.route('/api/punch', methods=['POST'])
+@login_required
 def api_punch():
     try:
         print("DEBUG: 打刻API呼び出し開始")
+        current_user = auth_manager.get_current_user()
+        print(f"DEBUG: 現在のユーザー={current_user}")
         print(f"DEBUG: リクエストメソッド={request.method}")
         print(f"DEBUG: Content-Type={request.content_type}")
         
-        data = load_data()
-        print("DEBUG: データロード完了")
+        # 現在のユーザーのデータを取得
+        user_data = load_user_data(current_user)
+        print("DEBUG: ユーザーデータロード完了")
         
         req = request.get_json()
         print(f"DEBUG: リクエストJSON={req}")
@@ -631,13 +689,14 @@ def api_punch():
         time_str = punch_time.strftime('%H:%M')
         print(f"DEBUG: 打刻時刻（JST）={time_str}")
 
-        if date_str not in data:
-            data[date_str] = {}
-        data[date_str][field] = time_str
-        print(f"DEBUG: 保存前データ={data.get(date_str, {})}")
+        # ユーザー別にデータを保存
+        if date_str not in user_data:
+            user_data[date_str] = {}
+        user_data[date_str][field] = time_str
+        print(f"DEBUG: 保存前ユーザーデータ={user_data.get(date_str, {})}")
         
-        save_data(data)
-        print("DEBUG: データ保存完了")
+        save_user_data(current_user, user_data)
+        print("DEBUG: ユーザーデータ保存完了")
         
         return jsonify({'success': True, 'time': time_str})
         
