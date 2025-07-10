@@ -8,7 +8,7 @@ from dateutil.relativedelta import relativedelta
 from math import floor
 import requests
 from firebase_config import firebase_db
-from auth import auth_manager, login_required, admin_required
+from auth import auth_manager, login_required
 
 # jpholidayのインポートを安全に行う
 try:
@@ -477,83 +477,57 @@ def create_excel_report(year, month, data, username):
     wb.save(filename)
     return filename
 
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    """ログイン画面"""
+@app.route('/auth', methods=['GET', 'POST'])
+def auth():
+    """ログイン・新規登録画面"""
     if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
+        action = request.form.get('action')
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
         
-        if auth_manager.verify_password(username, password):
-            auth_manager.login_user(username)
-            return redirect(url_for('index'))
-        else:
-            return render_template('login.html', error='ユーザー名またはパスワードが間違っています')
+        if action == 'login':
+            # ログイン処理
+            if auth_manager.verify_password(username, password):
+                auth_manager.login_user(username)
+                return redirect(url_for('index'))
+            else:
+                return render_template('auth.html', error_message='ユーザー名またはパスワードが間違っています')
+        
+        elif action == 'register':
+            # 新規登録処理
+            display_name = request.form.get('display_name', '').strip()
+            confirm_password = request.form.get('confirm_password', '')
+            
+            # バリデーション
+            if not username or not password or not display_name:
+                return render_template('auth.html', error_message='すべての項目を入力してください')
+            elif len(password) < 6:
+                return render_template('auth.html', error_message='パスワードは6文字以上で設定してください')
+            elif password != confirm_password:
+                return render_template('auth.html', error_message='パスワードが一致しません')
+            elif not username.replace('_', '').isalnum():
+                return render_template('auth.html', error_message='ユーザー名は英数字とアンダースコア（_）のみ使用できます')
+            else:
+                # ユーザー追加
+                if auth_manager.add_user(username, password, display_name):
+                    auth_manager.login_user(username)
+                    return redirect(url_for('index'))
+                else:
+                    return render_template('auth.html', error_message=f'ユーザー「{username}」は既に存在します')
     
     # 既にログイン済みの場合はホームにリダイレクト
     if auth_manager.is_logged_in():
         return redirect(url_for('index'))
     
-    return render_template('login.html')
+    return render_template('auth.html')
 
 @app.route('/logout')
 def logout():
     """ログアウト"""
     auth_manager.logout_user()
-    return redirect(url_for('login'))
+    return redirect(url_for('auth'))
 
-@app.route('/user_management', methods=['GET', 'POST'])
-@admin_required
-def user_management():
-    """ユーザー管理画面（管理者のみ）"""
-    success_message = None
-    error_message = None
-    
-    if request.method == 'POST':
-        action = request.form.get('action')
-        
-        if action == 'add_user':
-            new_username = request.form.get('new_username', '').strip()
-            new_password = request.form.get('new_password', '')
-            confirm_password = request.form.get('confirm_password', '')
-            
-            # バリデーション
-            if not new_username or not new_password:
-                error_message = 'ユーザー名とパスワードを入力してください'
-            elif len(new_password) < 6:
-                error_message = 'パスワードは6文字以上で設定してください'
-            elif new_password != confirm_password:
-                error_message = 'パスワードが一致しません'
-            elif not new_username.replace('_', '').isalnum():
-                error_message = 'ユーザー名は英数字とアンダースコア（_）のみ使用できます'
-            else:
-                # ユーザー追加
-                if auth_manager.add_user(new_username, new_password):
-                    success_message = f'ユーザー「{new_username}」を作成しました'
-                else:
-                    error_message = f'ユーザー「{new_username}」は既に存在します'
-        
-        elif action == 'delete_user':
-            username = request.form.get('username', '')
-            if username:
-                if auth_manager.delete_user(username):
-                    success_message = f'ユーザー「{username}」を削除しました'
-                else:
-                    error_message = f'ユーザー「{username}」の削除に失敗しました'
-    
-    # ユーザー一覧を取得
-    users = auth_manager.get_user_list()
-    current_user = auth_manager.get_current_user()
-    
-    def is_admin_user(username):
-        return auth_manager.is_admin(username)
-    
-    return render_template('user_management.html', 
-                         users=users,
-                         current_user=current_user,
-                         success_message=success_message,
-                         error_message=error_message,
-                         is_admin_user=is_admin_user)
+
 
 @app.route('/')
 @login_required
@@ -573,7 +547,7 @@ def index():
     return render_template('punch.html', 
                          today=today,
                          current_user=current_user,
-                         is_admin=auth_manager.is_admin(current_user),
+                         current_display_name=auth_manager.get_current_display_name(),
                          check_in=today_data.get('check_in', ''),
                          check_out=today_data.get('check_out', ''))
 
@@ -583,13 +557,16 @@ def attendance_info():
     """勤怠情報ページ"""
     year = int(request.args.get('year', datetime.now().year))
     month = int(request.args.get('month', datetime.now().month))
-    username = request.args.get('username', '')
+    
+    # 現在のユーザー情報を取得
+    current_user = auth_manager.get_current_user()
+    display_name = auth_manager.get_current_display_name()
     
     # 月の日付範囲を取得
     start_date, end_date = get_month_range(int(year), int(month))
     
-    # 勤怠データを読み込み
-    data = load_data()
+    # ユーザー別勤怠データを読み込み
+    user_data = load_user_data(current_user)
     
     # 日付ごとのデータを準備
     attendance_data = []
@@ -604,7 +581,7 @@ def attendance_info():
             'display_date': current_date.day,
             'weekday': weekday,
             'is_holiday': is_holiday,
-            'data': data.get(date_str, {})
+            'data': user_data.get(date_str, {})
         })
         current_date += timedelta(days=1)
     
@@ -612,7 +589,8 @@ def attendance_info():
                          attendance_data=attendance_data,
                          year=year, 
                          month=month, 
-                         username=username,
+                         current_user=current_user,
+                         display_name=display_name,
                          today=datetime.now().strftime('%Y-%m-%d'))
 
 @app.route('/attendance')
@@ -621,13 +599,16 @@ def attendance():
     """勤怠入力ページ"""
     year = int(request.args.get('year', datetime.now().year))
     month = int(request.args.get('month', datetime.now().month))
-    username = request.args.get('username', '')
+    
+    # 現在のユーザー情報を取得
+    current_user = auth_manager.get_current_user()
+    display_name = auth_manager.get_current_display_name()
     
     # 月の日付範囲を取得
     start_date, end_date = get_month_range(int(year), int(month))
     
-    # 勤怠データを読み込み
-    data = load_data()
+    # ユーザー別勤怠データを読み込み
+    user_data = load_user_data(current_user)
     
     # 日付ごとのデータを準備
     attendance_data = []
@@ -642,7 +623,7 @@ def attendance():
             'display_date': current_date.day,
             'weekday': weekday,
             'is_holiday': is_holiday,
-            'data': data.get(date_str, {})
+            'data': user_data.get(date_str, {})
         })
         current_date += timedelta(days=1)
     
@@ -650,7 +631,8 @@ def attendance():
                          attendance_data=attendance_data,
                          year=year, 
                          month=month, 
-                         username=username,
+                         current_user=current_user,
+                         display_name=display_name,
                          today=datetime.now().strftime('%Y-%m-%d'))
 
 @app.route('/save_attendance', methods=['POST'])
@@ -667,14 +649,19 @@ def save_attendance():
     return redirect(url_for('attendance'))
 
 @app.route('/export_excel')
+@login_required
 def export_excel():
     """Excelファイルをエクスポート"""
     year = int(request.args.get('year', datetime.now().year))
     month = int(request.args.get('month', datetime.now().month))
-    username = request.args.get('username', '')
     
-    data = load_data()
-    filename = create_excel_report(year, month, data, username)
+    # ログインユーザーの情報を取得
+    current_user = auth_manager.get_current_user()
+    display_name = auth_manager.get_current_display_name()
+    
+    # ユーザー別データを取得
+    user_data = load_user_data(current_user)
+    filename = create_excel_report(year, month, user_data, display_name)
     
     return send_file(filename, as_attachment=True, download_name=filename)
 

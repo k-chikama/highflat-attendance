@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>勤怠システム - ログイン・新規登録</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      }
+
+      .auth-container {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
+
+      .auth-card {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        border-radius: 20px;
+        box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
+        overflow: hidden;
+        max-width: 450px;
+        width: 100%;
+      }
+
+      .auth-header {
+        background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        color: white;
+        padding: 30px;
+        text-align: center;
+      }
+
+      .auth-body {
+        padding: 40px;
+      }
+
+      .nav-tabs {
+        border-bottom: none;
+        margin-bottom: 30px;
+      }
+
+      .nav-tabs .nav-link {
+        border: none;
+        border-radius: 10px;
+        margin: 0 5px;
+        color: #6c757d;
+        font-weight: 500;
+        transition: all 0.3s ease;
+      }
+
+      .nav-tabs .nav-link.active {
+        background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        color: white;
+        box-shadow: 0 4px 15px rgba(79, 172, 254, 0.4);
+      }
+
+      .form-control {
+        border: 2px solid #e9ecef;
+        border-radius: 10px;
+        padding: 12px 15px;
+        font-size: 16px;
+        transition: all 0.3s ease;
+      }
+
+      .form-control:focus {
+        border-color: #4facfe;
+        box-shadow: 0 0 0 0.2rem rgba(79, 172, 254, 0.25);
+      }
+
+      .btn-auth {
+        background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        border: none;
+        border-radius: 10px;
+        padding: 12px 30px;
+        font-weight: 600;
+        color: white;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(79, 172, 254, 0.4);
+      }
+
+      .btn-auth:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(79, 172, 254, 0.6);
+        color: white;
+      }
+
+      .alert {
+        border-radius: 10px;
+        border: none;
+      }
+
+      .form-label {
+        font-weight: 600;
+        color: #495057;
+        margin-bottom: 8px;
+      }
+
+      .password-strength {
+        font-size: 12px;
+        margin-top: 5px;
+      }
+
+      .strength-weak {
+        color: #dc3545;
+      }
+      .strength-medium {
+        color: #ffc107;
+      }
+      .strength-strong {
+        color: #28a745;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="auth-container">
+      <div class="auth-card">
+        <div class="auth-header">
+          <h2 class="mb-0">
+            <i class="fas fa-clock me-2"></i>
+            勤怠システム
+          </h2>
+          <p class="mb-0 mt-2 opacity-75">HighFlat Attendance System</p>
+        </div>
+        <div class="auth-body">
+          <!-- タブナビゲーション -->
+          <ul
+            class="nav nav-tabs justify-content-center"
+            id="authTabs"
+            role="tablist"
+          >
+            <li class="nav-item" role="presentation">
+              <button
+                class="nav-link active"
+                id="login-tab"
+                data-bs-toggle="tab"
+                data-bs-target="#login"
+                type="button"
+                role="tab"
+              >
+                <i class="fas fa-sign-in-alt me-1"></i>ログイン
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button
+                class="nav-link"
+                id="register-tab"
+                data-bs-toggle="tab"
+                data-bs-target="#register"
+                type="button"
+                role="tab"
+              >
+                <i class="fas fa-user-plus me-1"></i>新規登録
+              </button>
+            </li>
+          </ul>
+
+          <!-- メッセージ表示 -->
+          {% if success_message %}
+          <div
+            class="alert alert-success alert-dismissible fade show"
+            role="alert"
+          >
+            <i class="fas fa-check-circle me-2"></i>{{ success_message }}
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="alert"
+            ></button>
+          </div>
+          {% endif %} {% if error_message %}
+          <div
+            class="alert alert-danger alert-dismissible fade show"
+            role="alert"
+          >
+            <i class="fas fa-exclamation-triangle me-2"></i>{{ error_message }}
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="alert"
+            ></button>
+          </div>
+          {% endif %}
+
+          <!-- タブコンテンツ -->
+          <div class="tab-content" id="authTabsContent">
+            <!-- ログインタブ -->
+            <div class="tab-pane fade show active" id="login" role="tabpanel">
+              <form method="POST" action="{{ url_for('auth') }}">
+                <input type="hidden" name="action" value="login" />
+
+                <div class="mb-3">
+                  <label for="login-username" class="form-label">
+                    <i class="fas fa-user me-2"></i>ユーザー名
+                  </label>
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="login-username"
+                    name="username"
+                    required
+                    autocomplete="username"
+                    placeholder="ユーザー名を入力"
+                  />
+                </div>
+
+                <div class="mb-4">
+                  <label for="login-password" class="form-label">
+                    <i class="fas fa-lock me-2"></i>パスワード
+                  </label>
+                  <input
+                    type="password"
+                    class="form-control"
+                    id="login-password"
+                    name="password"
+                    required
+                    autocomplete="current-password"
+                    placeholder="パスワードを入力"
+                  />
+                </div>
+
+                <button type="submit" class="btn btn-auth w-100">
+                  <i class="fas fa-sign-in-alt me-2"></i>
+                  ログイン
+                </button>
+              </form>
+            </div>
+
+            <!-- 新規登録タブ -->
+            <div class="tab-pane fade" id="register" role="tabpanel">
+              <form
+                method="POST"
+                action="{{ url_for('auth') }}"
+                id="registerForm"
+              >
+                <input type="hidden" name="action" value="register" />
+
+                <div class="mb-3">
+                  <label for="register-display-name" class="form-label">
+                    <i class="fas fa-id-card me-2"></i>氏名
+                  </label>
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="register-display-name"
+                    name="display_name"
+                    required
+                    autocomplete="name"
+                    placeholder="山田 太郎"
+                  />
+                  <small class="text-muted">
+                    <i class="fas fa-info-circle me-1"></i>
+                    勤怠表に表示される氏名を入力してください
+                  </small>
+                </div>
+
+                <div class="mb-3">
+                  <label for="register-username" class="form-label">
+                    <i class="fas fa-user me-2"></i>ユーザー名（ログインID）
+                  </label>
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="register-username"
+                    name="username"
+                    required
+                    autocomplete="username"
+                    placeholder="yamada_taro"
+                    pattern="[a-zA-Z0-9_]+"
+                    title="英数字とアンダースコア（_）のみ使用可能"
+                  />
+                  <small class="text-muted">
+                    <i class="fas fa-info-circle me-1"></i>
+                    ログイン時に使用するID（英数字とアンダースコア（_）のみ）
+                  </small>
+                </div>
+
+                <div class="mb-3">
+                  <label for="register-password" class="form-label">
+                    <i class="fas fa-lock me-2"></i>パスワード
+                  </label>
+                  <input
+                    type="password"
+                    class="form-control"
+                    id="register-password"
+                    name="password"
+                    required
+                    autocomplete="new-password"
+                    placeholder="パスワードを入力（6文字以上）"
+                    minlength="6"
+                  />
+                  <div id="password-strength" class="password-strength"></div>
+                </div>
+
+                <div class="mb-4">
+                  <label for="register-confirm-password" class="form-label">
+                    <i class="fas fa-lock me-2"></i>パスワード（確認）
+                  </label>
+                  <input
+                    type="password"
+                    class="form-control"
+                    id="register-confirm-password"
+                    name="confirm_password"
+                    required
+                    autocomplete="new-password"
+                    placeholder="パスワードを再入力"
+                  />
+                  <div id="password-match" class="password-strength"></div>
+                </div>
+
+                <button type="submit" class="btn btn-auth w-100">
+                  <i class="fas fa-user-plus me-2"></i>
+                  アカウント作成
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+      // パスワード強度チェック
+      document
+        .getElementById("register-password")
+        .addEventListener("input", function () {
+          const password = this.value;
+          const strengthDiv = document.getElementById("password-strength");
+
+          if (password.length === 0) {
+            strengthDiv.textContent = "";
+            return;
+          }
+
+          let strength = 0;
+          if (password.length >= 6) strength++;
+          if (password.match(/[a-z]/)) strength++;
+          if (password.match(/[A-Z]/)) strength++;
+          if (password.match(/[0-9]/)) strength++;
+          if (password.match(/[^a-zA-Z0-9]/)) strength++;
+
+          if (strength < 2) {
+            strengthDiv.className = "password-strength strength-weak";
+            strengthDiv.innerHTML =
+              '<i class="fas fa-times-circle me-1"></i>弱い';
+          } else if (strength < 4) {
+            strengthDiv.className = "password-strength strength-medium";
+            strengthDiv.innerHTML =
+              '<i class="fas fa-exclamation-circle me-1"></i>普通';
+          } else {
+            strengthDiv.className = "password-strength strength-strong";
+            strengthDiv.innerHTML =
+              '<i class="fas fa-check-circle me-1"></i>強い';
+          }
+        });
+
+      // パスワード確認チェック
+      document
+        .getElementById("register-confirm-password")
+        .addEventListener("input", function () {
+          const password = document.getElementById("register-password").value;
+          const confirmPassword = this.value;
+          const matchDiv = document.getElementById("password-match");
+
+          if (confirmPassword.length === 0) {
+            matchDiv.textContent = "";
+            return;
+          }
+
+          if (password === confirmPassword) {
+            matchDiv.className = "password-strength strength-strong";
+            matchDiv.innerHTML =
+              '<i class="fas fa-check-circle me-1"></i>パスワードが一致しています';
+          } else {
+            matchDiv.className = "password-strength strength-weak";
+            matchDiv.innerHTML =
+              '<i class="fas fa-times-circle me-1"></i>パスワードが一致しません';
+          }
+        });
+
+      // フォーム送信時の最終チェック
+      document
+        .getElementById("registerForm")
+        .addEventListener("submit", function (e) {
+          const password = document.getElementById("register-password").value;
+          const confirmPassword = document.getElementById(
+            "register-confirm-password"
+          ).value;
+
+          if (password !== confirmPassword) {
+            e.preventDefault();
+            alert("パスワードが一致しません");
+            return false;
+          }
+
+          if (password.length < 6) {
+            e.preventDefault();
+            alert("パスワードは6文字以上で設定してください");
+            return false;
+          }
+        });
+    </script>
+  </body>
+</html>
