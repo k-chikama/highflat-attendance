@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>API Test</title>
+  </head>
+  <body>
+    <h1>API Test for Vercel</h1>
+    <button onclick="testPunchAPI()">Test Punch API</button>
+    <div id="result"></div>
+
+    <script>
+      async function testPunchAPI() {
+        const resultDiv = document.getElementById("result");
+        resultDiv.innerHTML = "Testing...";
+
+        try {
+          const response = await fetch("/api/punch", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              type: "start",
+              date: "2025-01-10",
+              time: "15:00",
+            }),
+          });
+
+          const responseText = await response.text();
+          console.log("Raw response:", responseText);
+
+          resultDiv.innerHTML = `
+                <h3>Response Status: ${response.status}</h3>
+                <h3>Response Headers:</h3>
+                <pre>${JSON.stringify(
+                  Object.fromEntries(response.headers),
+                  null,
+                  2
+                )}</pre>
+                <h3>Response Body:</h3>
+                <pre>${responseText}</pre>
+            `;
+
+          if (response.ok) {
+            try {
+              const data = JSON.parse(responseText);
+              console.log("Parsed response:", data);
+            } catch (e) {
+              console.error("Failed to parse JSON:", e);
+            }
+          }
+        } catch (error) {
+          console.error("Error:", error);
+          resultDiv.innerHTML = `<h3>Error: ${error.message}</h3>`;
+        }
+      }
+    </script>
+  </body>
+</html>
