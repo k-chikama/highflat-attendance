@@ -6,7 +6,15 @@ import os
 import json
 from dateutil.relativedelta import relativedelta
 from math import floor
-import jpholiday
+import requests
+
+# jpholidayのインポートを安全に行う
+try:
+    import jpholiday
+    JPHOLIDAY_AVAILABLE = True
+except (ImportError, TypeError) as e:
+    print(f"jpholidayインポートエラー: {e}")
+    JPHOLIDAY_AVAILABLE = False
 
 app = Flask(__name__)
 app.secret_key = 'your-secret-key-here'
@@ -14,17 +22,110 @@ app.secret_key = 'your-secret-key-here'
 # データファイルのパス
 DATA_FILE = 'attendance_data.json'
 
+# Vercel環境でのデータ永続化のための設定
+GIST_ID = os.environ.get('GIST_ID')
+GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN')
+USE_GIST = bool(GIST_ID and GITHUB_TOKEN)
+
 def load_data():
     """勤怠データを読み込む"""
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    return {}
+    print(f"DEBUG: GIST_ID = {GIST_ID}")
+    print(f"DEBUG: GITHUB_TOKEN = {'設定済み' if GITHUB_TOKEN else '未設定'}")
+    print(f"DEBUG: USE_GIST = {USE_GIST}")
+    
+    if USE_GIST:
+        return load_data_from_gist()
+    else:
+        if os.path.exists(DATA_FILE):
+            with open(DATA_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        return {}
 
 def save_data(data):
     """勤怠データを保存する"""
-    with open(DATA_FILE, 'w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    if USE_GIST:
+        save_data_to_gist(data)
+    else:
+        with open(DATA_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+
+def load_data_from_gist():
+    """GitHub Gistからデータを読み込む"""
+    try:
+        headers = {
+            'Authorization': f'token {GITHUB_TOKEN}',
+            'Accept': 'application/vnd.github.v3+json'
+        }
+        response = requests.get(f'https://api.github.com/gists/{GIST_ID}', headers=headers)
+        if response.status_code == 200:
+            gist_data = response.json()
+            files = gist_data.get('files', {})
+            for filename, file_data in files.items():
+                if filename == 'attendance_data.json':
+                    content = file_data.get('content', '{}')
+                    return json.loads(content)
+        return {}
+    except Exception as e:
+        print(f"Gist読み込みエラー: {e}")
+        return {}
+
+def save_data_to_gist(data):
+    """GitHub Gistにデータを保存する"""
+    try:
+        print(f"DEBUG: Gist保存開始 - データサイズ: {len(json.dumps(data))}")
+        headers = {
+            'Authorization': f'token {GITHUB_TOKEN}',
+            'Accept': 'application/vnd.github.v3+json'
+        }
+        
+        # 現在のGistを取得
+        response = requests.get(f'https://api.github.com/gists/{GIST_ID}', headers=headers)
+        print(f"DEBUG: Gist取得レスポンス: {response.status_code}")
+        if response.status_code != 200:
+            print(f"Gist取得エラー: {response.status_code}")
+            print(f"DEBUG: レスポンス内容: {response.text}")
+            return
+        
+        gist_data = response.json()
+        files = gist_data.get('files', {})
+        
+        # ファイル内容を更新
+        files['attendance_data.json'] = {
+            'content': json.dumps(data, ensure_ascii=False, indent=2)
+        }
+        
+        # Gistを更新
+        update_data = {
+            'files': files
+        }
+        
+        response = requests.patch(
+            f'https://api.github.com/gists/{GIST_ID}',
+            headers=headers,
+            json=update_data
+        )
+        
+        print(f"DEBUG: Gist更新レスポンス: {response.status_code}")
+        if response.status_code != 200:
+            print(f"Gist更新エラー: {response.status_code}")
+            print(f"DEBUG: レスポンス内容: {response.text}")
+        else:
+            print("DEBUG: Gist更新成功")
+            
+    except Exception as e:
+        print(f"Gist保存エラー: {e}")
+        import traceback
+        print(f"DEBUG: エラー詳細: {traceback.format_exc()}")
+
+def check_holiday(date):
+    """祝日判定（jpholidayが利用できない場合は土日のみ判定）"""
+    if JPHOLIDAY_AVAILABLE:
+        try:
+            return jpholiday.is_holiday(date)
+        except:
+            pass
+    # jpholidayが利用できない場合は土日のみ判定
+    return date.weekday() >= 5  # 土曜日(5)と日曜日(6)
 
 def get_month_range(year, month):
     """指定された年月の日付範囲を取得"""
@@ -185,7 +286,7 @@ def create_excel_report(year, month, data, username):
         travel_cost = att.get('travel_cost', '')
         travel_from = att.get('travel_from', '')
         travel_to = att.get('travel_to', '')
-        is_holiday = jpholiday.is_holiday(d)
+        is_holiday = check_holiday(d)
         def get_minutes(t):
             if not t: return None
             h, m = map(int, t.split(':'))
@@ -234,7 +335,7 @@ def create_excel_report(year, month, data, username):
         travel_cost = att.get('travel_cost', '')
         travel_from = att.get('travel_from', '')
         travel_to = att.get('travel_to', '')
-        is_holiday = jpholiday.is_holiday(d)
+        is_holiday = check_holiday(d)
         def get_minutes(t):
             if not t: return None
             h, m = map(int, t.split(':'))
@@ -361,7 +462,7 @@ def attendance_info():
     while current_date <= end_date:
         date_str = current_date.strftime('%Y-%m-%d')
         weekday = current_date.strftime('%A')
-        is_holiday = jpholiday.is_holiday(current_date)
+        is_holiday = check_holiday(current_date)
         
         attendance_data.append({
             'date': date_str,
@@ -398,7 +499,7 @@ def attendance():
     while current_date <= end_date:
         date_str = current_date.strftime('%Y-%m-%d')
         weekday = current_date.strftime('%A')
-        is_holiday = jpholiday.is_holiday(current_date)
+        is_holiday = check_holiday(current_date)
         
         attendance_data.append({
             'date': date_str,
@@ -461,10 +562,12 @@ def api_save_attendance():
 
 @app.route('/api/punch', methods=['POST'])
 def api_punch():
+    print("DEBUG: 打刻API呼び出し開始")
     data = load_data()
     req = request.get_json()
     date_str = req.get('date')
     field = req.get('field')  # 'check_in' or 'check_out'
+    print(f"DEBUG: date_str={date_str}, field={field}")
 
     # 現在時刻を15分単位で四捨五入
     now = datetime.now()
@@ -476,11 +579,15 @@ def api_punch():
     else:
         punch_time = now.replace(minute=round_min, second=0, microsecond=0)
     time_str = punch_time.strftime('%H:%M')
+    print(f"DEBUG: 打刻時刻={time_str}")
 
     if date_str not in data:
         data[date_str] = {}
     data[date_str][field] = time_str
+    print(f"DEBUG: 保存前データ={data.get(date_str, {})}")
     save_data(data)
+    print("DEBUG: データ保存完了")
+    
     return jsonify({'success': True, 'time': time_str})
 
 @app.route('/api/save_field', methods=['POST'])

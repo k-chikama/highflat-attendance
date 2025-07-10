@@ -1,101 +1,143 @@
-# 勤怠システム
+# Web 勤怠システム
 
-画像のような Excel の勤怠表を作成できる Web ベースの勤怠管理システムです。
+Flask + openpyxl で作成された Web 勤怠システムです。
 
 ## 機能
 
-- 📅 **月次勤怠入力**: 日々の出勤・退勤時間を入力
-- ⏰ **自動計算**: 勤務時間、実働時間、残業時間を自動計算
-- 📊 **Excel 出力**: 月次勤怠表を Excel ファイルで出力
-- 💾 **データ保存**: JSON 形式で勤怠データを保存
-- 📱 **レスポンシブ**: スマートフォンやタブレットでも使用可能
-- ⌨️ **キーボードショートカット**: 効率的な操作
+- 勤怠打刻（出勤・退勤）
+- 勤怠入力・編集
+- 勤怠情報表示
+- Excel 出力
+- 祝日対応
+- 交通費・駅名列
+- 即時保存
+- 本日行の強調表示
 
-## インストール
+## ローカル環境での実行
 
-1. 必要なパッケージをインストール:
+### 前提条件
+
+- Python 3.8 以上
+- pip
+
+### セットアップ
 
 ```bash
+# 仮想環境を作成
+python3 -m venv .venv
+
+# 仮想環境を有効化
+source .venv/bin/activate  # macOS/Linux
+# .venv\Scripts\activate  # Windows
+
+# 依存関係をインストール
 pip install -r requirements.txt
-```
 
-2. アプリケーションを起動:
-
-```bash
+# アプリケーションを実行
 python app.py
 ```
 
-3. ブラウザで `http://localhost:5000` にアクセス
+### アクセス
 
-## 使用方法
+- http://localhost:5001
 
-### 1. 勤怠入力
+## Vercel 環境でのデプロイ
 
-- ホームページから「勤怠入力」をクリック
-- 年月を選択して表示
-- 各日の出勤時間・退勤時間を入力
-- 休憩時間を設定（デフォルト: 1.0 時間）
-- 勤務時間・実働時間・残業時間は自動計算されます
+### データ永続化の問題
 
-### 2. Excel 出力
+Vercel はサーバーレス環境のため、ファイルシステムへの書き込みは永続化されません。このシステムでは GitHub Gist を使用してデータを永続化しています。
 
-- 勤怠入力ページの「Excel 出力」ボタンをクリック
-- 月次勤怠表が Excel ファイルでダウンロードされます
+### セットアップ手順
 
-### 3. キーボードショートカット
+#### 1. GitHub Personal Access Token の作成
 
-- `Ctrl + S`: データ保存
-- `Ctrl + E`: Excel 出力
+1. GitHub にログイン
+2. Settings > Developer settings > Personal access tokens > Tokens (classic)
+3. "Generate new token" をクリック
+4. 以下の権限を選択：
+   - `gist` (Gist の作成・編集)
+5. トークンを生成し、安全な場所に保存
+
+#### 2. GitHub Gist の作成
+
+1. GitHub で新しい Gist を作成
+2. ファイル名: `attendance_data.json`
+3. 内容: `{}`
+4. "Create secret gist" をクリック
+5. Gist の URL から ID を取得（例: `https://gist.github.com/username/1234567890abcdef` → `1234567890abcdef`）
+
+#### 3. Vercel プロジェクトの作成
+
+1. Vercel にログイン
+2. "New Project" をクリック
+3. GitHub リポジトリを選択
+4. 以下の環境変数を設定：
+   - `GIST_ID`: 作成した Gist の ID
+   - `GITHUB_TOKEN`: 作成した Personal Access Token
+
+#### 4. デプロイ
+
+1. "Deploy" をクリック
+2. デプロイ完了後、提供された URL でアクセス
+
+### 環境変数の設定
+
+Vercel のダッシュボードで以下の環境変数を設定してください：
+
+```
+GIST_ID=your_gist_id_here
+GITHUB_TOKEN=your_github_token_here
+```
+
+### トラブルシューティング
+
+#### 打刻が反映されない
+
+1. 環境変数が正しく設定されているか確認
+2. GitHub Personal Access Token の権限を確認
+3. Gist ID が正しいか確認
+4. Vercel のログでエラーを確認
+
+#### jpholiday エラー
+
+- Vercel は Python 3.9 を使用
+- requirements.txt で jpholiday==1.0.2 を指定済み
+- 型エラーが発生した場合は土日のみの判定にフォールバック
+
+#### その他の問題
+
+- Vercel のダッシュボードでログを確認
+- GitHub API の制限に達していないか確認
 
 ## ファイル構成
 
 ```
 highflat/
 ├── app.py                 # メインアプリケーション
-├── requirements.txt       # 依存パッケージ
-├── attendance_data.json   # 勤怠データ（自動生成）
-├── templates/            # HTMLテンプレート
+├── wsgi.py               # Vercel用WSGIエントリーポイント
+├── requirements.txt      # Python依存関係
+├── runtime.txt          # Pythonバージョン指定
+├── vercel.json          # Vercel設定
+├── templates/           # HTMLテンプレート
 │   ├── base.html
-│   ├── index.html
-│   └── attendance.html
-└── static/              # 静的ファイル
-    ├── css/
-    │   └── style.css
-    └── js/
-        └── script.js
+│   ├── punch.html
+│   ├── attendance.html
+│   └── attendance_info.html
+├── static/              # 静的ファイル
+│   ├── css/
+│   └── js/
+└── attendance_data.json # 勤怠データ（ローカル環境）
 ```
-
-## 出力される Excel ファイルの形式
-
-画像のような形式で Excel ファイルが生成されます：
-
-| 日付 | 曜日 | 出勤時間 | 退勤時間 | 勤務時間 | 休憩時間 | 実働時間 | 残業時間 | 備考 |
-| ---- | ---- | -------- | -------- | -------- | -------- | -------- | -------- | ---- |
-| 1/1  | 月   | 09:00    | 18:00    | 9.0      | 1.0      | 8.0      | 0.0      |      |
-| 1/2  | 火   | 09:00    | 19:00    | 10.0     | 1.0      | 9.0      | 1.0      |      |
-| ...  | ...  | ...      | ...      | ...      | ...      | ...      | ...      | ...  |
-| 合計 |      |          |          |          |          | 160.0    | 15.0     |      |
-
-## 特徴
-
-- **自動計算**: 出勤・退勤時間から勤務時間を自動計算
-- **残業管理**: 8 時間を超える勤務を残業時間として計算
-- **土日表示**: 土日の行は背景色を変更して表示
-- **データ永続化**: 入力したデータは JSON ファイルに保存
-- **モダン UI**: Bootstrap 5 を使用した美しいインターフェース
 
 ## 技術仕様
 
-- **バックエンド**: Python Flask
-- **フロントエンド**: HTML5, CSS3, JavaScript
-- **UI フレームワーク**: Bootstrap 5
-- **Excel 操作**: openpyxl
+- **フレームワーク**: Flask 2.3.3
 - **データ形式**: JSON
+- **Excel 出力**: openpyxl 3.1.2
+- **祝日判定**: jpholiday 1.0.2
+- **データ永続化**: GitHub Gist API（Vercel 環境）
+- **フロントエンド**: Bootstrap 5, JavaScript
 
 ## ライセンス
 
 MIT License
-
-## サポート
-
-問題や質問がある場合は、GitHub の Issues ページでお知らせください。

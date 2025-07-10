@@ -104,7 +104,8 @@
       .then((res) => res.json())
       .then((data) => {
         if (data.success) {
-          location.reload();
+          // 打刻成功後、勤怠入力画面にリダイレクト
+          window.location.href = "/attendance";
         } else {
           alert("打刻に失敗しました");
         }

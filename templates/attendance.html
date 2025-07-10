@@ -62,7 +62,7 @@
                                 {% set is_holiday = item.is_holiday %}
                                 {% set is_today = item.date == today %}
                                 {% set is_holiday_or_weekend = is_weekend or is_holiday %}
-                                <tr class="{% if is_holiday_or_weekend %}table-secondary{% endif %}{% if is_today %} border border-primary border-3{% endif %}">
+                                <tr class="{% if is_holiday_or_weekend %}table-secondary{% endif %}{% if is_today %} border border-primary border-3{% endif %}" data-date="{{ item.date }}">
                                     <td class="text-center fw-bold{% if is_today %} bg-primary text-white{% endif %}">{{ item.display_date }}</td>
                                     <td class="text-center {% if is_holiday_or_weekend %}text-danger fw-bold{% endif %}">
                                         {{ weekday_jp }}
