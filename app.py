@@ -626,6 +626,17 @@ def api_save_field():
     save_data(data)
     return jsonify({'success': True})
 
+@app.route('/debug_env')
+def debug_env():
+    """環境変数デバッグ用"""
+    return jsonify({
+        'GIST_ID': GIST_ID,
+        'GITHUB_TOKEN_SET': bool(GITHUB_TOKEN),
+        'GITHUB_TOKEN_PREFIX': GITHUB_TOKEN[:20] + '...' if GITHUB_TOKEN else None,
+        'USE_GIST': USE_GIST,
+        'environment': os.environ.get('VERCEL', 'local')
+    })
+
 @app.route('/test_api')
 def test_api():
     """APIテスト用ページ"""
