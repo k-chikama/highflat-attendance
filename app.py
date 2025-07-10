@@ -8,7 +8,7 @@ from dateutil.relativedelta import relativedelta
 from math import floor
 import requests
 from firebase_config import firebase_db
-from auth import auth_manager, login_required
+from auth import auth_manager, login_required, admin_required
 
 # jpholidayのインポートを安全に行う
 try:
@@ -502,6 +502,59 @@ def logout():
     auth_manager.logout_user()
     return redirect(url_for('login'))
 
+@app.route('/user_management', methods=['GET', 'POST'])
+@admin_required
+def user_management():
+    """ユーザー管理画面（管理者のみ）"""
+    success_message = None
+    error_message = None
+    
+    if request.method == 'POST':
+        action = request.form.get('action')
+        
+        if action == 'add_user':
+            new_username = request.form.get('new_username', '').strip()
+            new_password = request.form.get('new_password', '')
+            confirm_password = request.form.get('confirm_password', '')
+            
+            # バリデーション
+            if not new_username or not new_password:
+                error_message = 'ユーザー名とパスワードを入力してください'
+            elif len(new_password) < 6:
+                error_message = 'パスワードは6文字以上で設定してください'
+            elif new_password != confirm_password:
+                error_message = 'パスワードが一致しません'
+            elif not new_username.replace('_', '').isalnum():
+                error_message = 'ユーザー名は英数字とアンダースコア（_）のみ使用できます'
+            else:
+                # ユーザー追加
+                if auth_manager.add_user(new_username, new_password):
+                    success_message = f'ユーザー「{new_username}」を作成しました'
+                else:
+                    error_message = f'ユーザー「{new_username}」は既に存在します'
+        
+        elif action == 'delete_user':
+            username = request.form.get('username', '')
+            if username:
+                if auth_manager.delete_user(username):
+                    success_message = f'ユーザー「{username}」を削除しました'
+                else:
+                    error_message = f'ユーザー「{username}」の削除に失敗しました'
+    
+    # ユーザー一覧を取得
+    users = auth_manager.get_user_list()
+    current_user = auth_manager.get_current_user()
+    
+    def is_admin_user(username):
+        return auth_manager.is_admin(username)
+    
+    return render_template('user_management.html', 
+                         users=users,
+                         current_user=current_user,
+                         success_message=success_message,
+                         error_message=error_message,
+                         is_admin_user=is_admin_user)
+
 @app.route('/')
 @login_required
 def index():
@@ -520,6 +573,7 @@ def index():
     return render_template('punch.html', 
                          today=today,
                          current_user=current_user,
+                         is_admin=auth_manager.is_admin(current_user),
                          check_in=today_data.get('check_in', ''),
                          check_out=today_data.get('check_out', ''))
 
