@@ -603,5 +603,109 @@ def api_save_field():
     save_data(data)
     return jsonify({'success': True})
 
+@app.route('/test_api')
+def test_api():
+    """APIテスト用ページ"""
+    return '''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>API Test</title>
+        <style>
+            body { font-family: Arial, sans-serif; margin: 20px; }
+            .result { margin: 20px 0; padding: 10px; border: 1px solid #ccc; background: #f9f9f9; }
+            button { padding: 10px 20px; font-size: 16px; margin: 10px 0; }
+            pre { background: #f0f0f0; padding: 10px; overflow-x: auto; }
+        </style>
+    </head>
+    <body>
+        <h1>API Test for Vercel</h1>
+        <button onclick="testPunchAPI()">Test Punch API</button>
+        <button onclick="testLoadData()">Test Load Data</button>
+        <div id="result"></div>
+
+        <script>
+        async function testPunchAPI() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<p>Testing Punch API...</p>';
+            
+            try {
+                const response = await fetch('/api/punch', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        date: '2025-01-10',
+                        field: 'check_in'
+                    })
+                });
+                
+                const responseText = await response.text();
+                console.log('Raw response:', responseText);
+                
+                resultDiv.innerHTML = `
+                    <div class="result">
+                        <h3>Punch API Test Result</h3>
+                        <p><strong>Status:</strong> ${response.status} ${response.statusText}</p>
+                        <p><strong>Response:</strong></p>
+                        <pre>${responseText}</pre>
+                    </div>
+                `;
+                
+                if (response.ok) {
+                    try {
+                        const data = JSON.parse(responseText);
+                        console.log('Parsed response:', data);
+                    } catch (e) {
+                        console.error('Failed to parse JSON:', e);
+                    }
+                }
+                
+            } catch (error) {
+                console.error('Error:', error);
+                resultDiv.innerHTML = `
+                    <div class="result">
+                        <h3>Error</h3>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+        
+        async function testLoadData() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<p>Testing Load Data...</p>';
+            
+            try {
+                const response = await fetch('/', {
+                    method: 'GET'
+                });
+                
+                const responseText = await response.text();
+                
+                resultDiv.innerHTML = `
+                    <div class="result">
+                        <h3>Load Data Test Result</h3>
+                        <p><strong>Status:</strong> ${response.status} ${response.statusText}</p>
+                        <p><strong>Page loaded successfully:</strong> ${responseText.includes('勤怠打刻') ? 'Yes' : 'No'}</p>
+                    </div>
+                `;
+                
+            } catch (error) {
+                console.error('Error:', error);
+                resultDiv.innerHTML = `
+                    <div class="result">
+                        <h3>Error</h3>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+        </script>
+    </body>
+    </html>
+    '''
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5001) 
