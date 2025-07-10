@@ -86,10 +86,12 @@
 <script>
   function updateTime() {
     const now = new Date();
+    // 日本時間で表示
     const timeString = now.toLocaleTimeString("ja-JP", {
       hour: "2-digit",
       minute: "2-digit",
       second: "2-digit",
+      timeZone: "Asia/Tokyo",
     });
     document.getElementById("current-time").textContent = timeString;
     document.getElementById("current-time-2").textContent = timeString;

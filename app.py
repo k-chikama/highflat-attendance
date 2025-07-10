@@ -613,8 +613,14 @@ def api_punch():
             print(f"ERROR: 必須パラメータ不足 - date_str={date_str}, field={field}")
             return jsonify({'success': False, 'error': 'Missing parameters'}), 400
 
-        # 現在時刻を15分単位で四捨五入
-        now = datetime.now()
+        # 現在時刻を日本時間（JST）で取得し、15分単位で四捨五入
+        from datetime import timezone
+        
+        # 日本時間（UTC+9）を取得
+        jst = timezone(timedelta(hours=9))
+        now = datetime.now(jst)
+        print(f"DEBUG: 現在時刻（JST）={now.strftime('%Y-%m-%d %H:%M:%S')}")
+        
         minute = now.minute
         # 四捨五入: 0-7→0, 8-22→15, 23-37→30, 38-52→45, 53-59→+1h,0
         round_min = int(15 * round(minute / 15))
@@ -623,7 +629,7 @@ def api_punch():
         else:
             punch_time = now.replace(minute=round_min, second=0, microsecond=0)
         time_str = punch_time.strftime('%H:%M')
-        print(f"DEBUG: 打刻時刻={time_str}")
+        print(f"DEBUG: 打刻時刻（JST）={time_str}")
 
         if date_str not in data:
             data[date_str] = {}
