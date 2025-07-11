@@ -801,20 +801,41 @@ def save_attendance():
 @login_required_decorator
 def export_excel():
     """Excelファイルをエクスポート"""
-    auth_mgr = get_auth_manager()
-    
-    year = int(request.args.get('year', datetime.now().year))
-    month = int(request.args.get('month', datetime.now().month))
-    
-    # ログインユーザーの情報を取得
-    current_user = auth_mgr.get_current_user()
-    display_name = auth_mgr.get_current_display_name()
-    
-    # ユーザー別データを取得
-    user_data = load_user_data(current_user)
-    filename = create_excel_report(year, month, user_data, display_name)
-    
-    return send_file(filename, as_attachment=True, download_name=filename)
+    try:
+        auth_mgr = get_auth_manager()
+        
+        year = int(request.args.get('year', datetime.now().year))
+        month = int(request.args.get('month', datetime.now().month))
+        
+        print(f"DEBUG: Excel出力開始 - 年月={year}/{month}")
+        
+        # ログインユーザーの情報を取得
+        current_user = auth_mgr.get_current_user()
+        display_name = auth_mgr.get_current_display_name()
+        
+        print(f"DEBUG: Excel出力ユーザー={current_user}, 表示名={display_name}")
+        
+        if not current_user:
+            print("ERROR: ユーザー認証失敗")
+            return redirect(url_for('auth'))
+        
+        # ユーザー別データを取得
+        user_data = load_user_data(current_user)
+        print(f"DEBUG: 取得データ件数={len(user_data)}")
+        
+        if not user_data:
+            print("WARNING: 勤怠データが存在しません")
+        
+        filename = create_excel_report(year, month, user_data, display_name)
+        print(f"DEBUG: Excel生成完了 - ファイル名={filename}")
+        
+        return send_file(filename, as_attachment=True, download_name=filename)
+        
+    except Exception as e:
+        print(f"ERROR: Excel出力エラー - {str(e)}")
+        import traceback
+        print(f"ERROR: トレースバック - {traceback.format_exc()}")
+        return jsonify({'error': f'Excel出力エラー: {str(e)}'}), 500
 
 @app.route('/api/punch', methods=['POST'])
 @login_required_decorator
