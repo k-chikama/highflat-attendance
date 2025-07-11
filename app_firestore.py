@@ -4,6 +4,8 @@ import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 import os
 import json
+import tempfile
+from io import BytesIO
 from dateutil.relativedelta import relativedelta
 from math import floor
 import requests
@@ -252,7 +254,7 @@ def get_month_range(year, month):
     return start_date, end_date
 
 def create_excel_report(year, month, data, user_display_name):
-    """Excelレポートを作成（画像フォーマットに準拠）"""
+    """Excelレポートを作成（Vercel環境対応・メモリ上で作成）"""
     import calendar
     from openpyxl.utils import get_column_letter
     
@@ -553,10 +555,15 @@ def create_excel_report(year, month, data, user_display_name):
     ws.cell(row=info_row+3, column=14, value=f"{year}年{month}月{days[-1].day}日").font = normal_font
     ws.cell(row=info_row+3, column=14).alignment = left
     
-    # ファイル保存
+    # ファイル名
     filename = f"作業時間報告書_{year}年{month}月_{user_display_name or '氏名未入力'}.xlsx"
-    wb.save(filename)
-    return filename
+    
+    # メモリ上でファイルを作成（Vercel環境対応）
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+    
+    return output, filename
 
 # ルート定義
 @app.route('/auth', methods=['GET', 'POST'])
@@ -800,7 +807,7 @@ def save_attendance():
 @app.route('/export_excel')
 @login_required_decorator
 def export_excel():
-    """Excelファイルをエクスポート"""
+    """Excelファイルをエクスポート（Vercel環境対応）"""
     try:
         auth_mgr = get_auth_manager()
         
@@ -826,10 +833,17 @@ def export_excel():
         if not user_data:
             print("WARNING: 勤怠データが存在しません")
         
-        filename = create_excel_report(year, month, user_data, display_name)
+        # Excelファイルをメモリ上で生成
+        excel_data, filename = create_excel_report(year, month, user_data, display_name)
         print(f"DEBUG: Excel生成完了 - ファイル名={filename}")
         
-        return send_file(filename, as_attachment=True, download_name=filename)
+        # メモリ上のファイルをレスポンスとして返す
+        return send_file(
+            excel_data,
+            as_attachment=True,
+            download_name=filename,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
         
     except Exception as e:
         print(f"ERROR: Excel出力エラー - {str(e)}")
