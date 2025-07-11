@@ -16,10 +16,6 @@ from firestore_config import firestore_manager
 from auth_firestore import firestore_auth_manager, firestore_login_required
 from attendance_firestore import firestore_attendance_manager
 
-# 下位互換性のために従来のインポートも保持
-from firebase_config import firebase_db
-from auth import auth_manager, login_required
-
 # jpholidayのインポートを安全に行う
 try:
     import jpholiday
@@ -33,37 +29,21 @@ app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
 
 # データファイルのパス（フォールバック用）
-DATA_FILE = 'attendance_data.json'
 
-# Vercel環境でのデータ永続化のための設定（フォールバック用）
-GIST_ID = os.environ.get('GIST_ID')
-GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN')
-USE_GIST = bool(GIST_ID and GITHUB_TOKEN)
 
 # Firestoreを使用するかどうかの設定
-USE_FIRESTORE = os.environ.get('USE_FIRESTORE', 'true').lower() == 'true'
+
 
 def get_auth_manager():
-    """適切な認証マネージャーを取得"""
-    if USE_FIRESTORE and firestore_manager.is_available():
-        return firestore_auth_manager
-    else:
-        return auth_manager
+    return firestore_auth_manager
 
 def get_attendance_manager():
     """適切な勤怠マネージャーを取得"""
-    if USE_FIRESTORE and firestore_manager.is_available():
-        return firestore_attendance_manager
-    else:
-        # 従来の形式をエミュレート
-        return None
+    return firestore_attendance_manager
 
 def get_login_required_decorator():
     """適切なログイン必須デコレータを取得"""
-    if USE_FIRESTORE and firestore_manager.is_available():
-        return firestore_login_required
-    else:
-        return login_required
+    return firestore_login_required
 
 # 動的にデコレータを設定
 login_required_decorator = get_login_required_decorator()
@@ -77,8 +57,7 @@ def load_user_data(username: str):
         return attendance_mgr.get_user_attendance_data(username)
     else:
         # 従来版
-        all_data = load_data()
-        return all_data.get('users', {}).get(username, {})
+        return {}
 
 def save_user_data(username: str, user_data: dict):
     """特定ユーザーの勤怠データを保存する"""
@@ -91,79 +70,15 @@ def save_user_data(username: str, user_data: dict):
                 attendance_mgr.update_user_attendance_data(username, date_str, field, value)
     else:
         # 従来版
-        all_data = load_data()
-        if 'users' not in all_data:
-            all_data['users'] = {}
-        if username not in all_data['users']:
-            all_data['users'][username] = {}
-        
-        all_data['users'][username] = user_data
-        save_data(all_data)
+        pass # Firestore専用なので従来版は使用しない
 
 def load_data():
-    """全体勤怠データを読み込む（従来版互換）"""
-    attendance_mgr = get_attendance_manager()
-    
-    if attendance_mgr:
-        # Firestore版では個別ユーザーデータの取得のみ対応
-        print("DEBUG: Firestore版を使用中、個別ユーザーデータを使用してください")
-        return {}
-    
-    # 従来版のロジック
-    print(f"DEBUG: Firebase利用可能 = {firebase_db.is_available()}")
-    print(f"DEBUG: GIST_ID = {GIST_ID}")
-    print(f"DEBUG: GITHUB_TOKEN = {'設定済み' if GITHUB_TOKEN else '未設定'}")
-    print(f"DEBUG: USE_GIST = {USE_GIST}")
-    
-    # Firebase優先で試行
-    if firebase_db.is_available():
-        data = firebase_db.load_data()
-        if data:  # Firebaseから正常にデータを取得できた場合
-            return data
-    
-    # Firebaseが失敗した場合、Gistを試行
-    if USE_GIST:
-        return load_data_from_gist()
-    
-    # 最後にローカルファイル（開発環境のみ）
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    
+    # Firestore専用: 必要に応じて個別ユーザーデータ取得関数を利用してください
     return {}
 
 def save_data(data):
-    """全体勤怠データを保存する（従来版互換）"""
-    attendance_mgr = get_attendance_manager()
-    
-    if attendance_mgr:
-        # Firestore版では自動保存されるためここでは何もしない
-        print("DEBUG: Firestore版使用中、自動保存済み")
-        return
-    
-    # 従来版のロジック
-    saved = False
-    
-    # Firebase優先で保存
-    if firebase_db.is_available():
-        if firebase_db.save_data(data):
-            saved = True
-            print("DEBUG: Firebaseに保存成功")
-    
-    # Firebaseが失敗した場合、Gistに保存
-    if not saved and USE_GIST:
-        save_data_to_gist(data)
-        saved = True
-        print("DEBUG: Gistに保存成功")
-    
-    # 開発環境ではローカルファイルにも保存
-    if not saved:
-        try:
-            with open(DATA_FILE, 'w', encoding='utf-8') as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-            print("DEBUG: ローカルファイルに保存成功")
-        except Exception as e:
-            print(f"ERROR: ローカル保存失敗 - {str(e)}")
+    # Firestore専用: 自動保存されるため何もしない
+    return
 
 def load_data_from_gist():
     """GitHub Gistからデータを読み込む"""
@@ -793,14 +708,7 @@ def save_attendance():
                 attendance_mgr.update_user_attendance_data(current_user, date_str, field, value)
     else:
         # 従来版
-        data = load_data()
-        for key, value in request.form.items():
-            if '_' in key:
-                field, date_str = key.split('_', 1)
-                if date_str not in data:
-                    data[date_str] = {}
-                data[date_str][field] = value
-        save_data(data)
+        pass # Firestore専用なので従来版は使用しない
     
     return redirect(url_for('attendance'))
 
@@ -959,11 +867,7 @@ def api_save_attendance():
         return jsonify({'success': success})
     else:
         # 従来版
-        data = load_data()
-        if date_str not in data:
-            data[date_str] = {}
-        data[date_str][field] = value
-        save_data(data)
+        pass # Firestore専用なので従来版は使用しない
         return jsonify({'success': True})
 
 @app.route('/api/save_field', methods=['POST'])
@@ -998,14 +902,10 @@ def api_save_field():
                 return jsonify({'success': False, 'error': 'Failed to save data'}), 500
         else:
             # 従来版
-            data = load_data()
-            if date_str not in data:
-                data[date_str] = {}
-            data[date_str][field] = value
-            save_data(data)
+            pass # Firestore専用なので従来版は使用しない
             return jsonify({
                 'success': True,
-                'updated_data': data.get(date_str, {})
+                'updated_data': {} # 従来版は空のデータを返す
             })
             
     except Exception as e:
@@ -1047,15 +947,15 @@ def api_debug_firestore():
     try:
         debug_info = {
             'timestamp': datetime.now().isoformat(),
-            'use_firestore': USE_FIRESTORE,
-            'firestore_available': firestore_manager.is_available() if USE_FIRESTORE else False,
+            'use_firestore': True, # Firestore専用なので常にTrue
+            'firestore_available': firestore_manager.is_available(),
             'firebase_project_id': os.environ.get('FIREBASE_PROJECT_ID', 'Not set'),
             'has_credentials': 'GOOGLE_APPLICATION_CREDENTIALS_BASE64' in os.environ,
             'environment': 'vercel' if 'VERCEL' in os.environ else 'local',
             'python_version': sys.version.split()[0],
         }
         
-        if USE_FIRESTORE and firestore_manager.is_available():
+        if firestore_manager.is_available():
             try:
                 # ユーザー数を取得
                 users_docs = firestore_manager.get_collection('users')
@@ -1111,7 +1011,7 @@ def api_debug_firestore():
 @app.route('/debug/firestore', methods=['GET'])
 def debug_firestore():
     """Firestore状態をデバッグ用に表示"""
-    if not USE_FIRESTORE:
+    if not firestore_manager.is_available():
         return jsonify({"error": "Firestore is disabled"}), 400
     
     try:
@@ -1139,15 +1039,15 @@ def debug_firestore():
         
         debug_info = {
             'firestore_available': firestore_manager.is_available(),
-            'use_firestore': USE_FIRESTORE,
+            'use_firestore': True, # Firestore専用なので常にTrue
             'firebase_project_id': os.environ.get('FIREBASE_PROJECT_ID', 'Not set'),
             'has_credentials': 'GOOGLE_APPLICATION_CREDENTIALS_BASE64' in os.environ,
             'user_count': user_count,
             'user_list': user_list,
             'session_count': session_count,
             'attendance_count': attendance_count,
-            'auth_cache_size': len(auth_manager.users_cache),
-            'auth_cache_users': list(auth_manager.users_cache.keys())
+            'auth_cache_size': len(firestore_auth_manager.users_cache),
+            'auth_cache_users': list(firestore_auth_manager.users_cache.keys())
         }
         
         return jsonify(debug_info)
@@ -1157,7 +1057,7 @@ def debug_firestore():
 
 if __name__ == '__main__':
     print(f"DEBUG: Firestore利用可能 = {firestore_manager.is_available()}")
-    print(f"DEBUG: USE_FIRESTORE = {USE_FIRESTORE}")
+    print(f"DEBUG: USE_FIRESTORE = {True}") # Firestore専用なので常にTrue
     
     # 開発時はデバッグモードで実行
     app.run(debug=True, host='0.0.0.0', port=5001) 

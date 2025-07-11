@@ -12,23 +12,17 @@ def setup_firebase_credentials():
             # Base64デコードしてJSONに変換
             credentials_json = base64.b64decode(credentials_base64).decode('utf-8')
             credentials_dict = json.loads(credentials_json)
-            
             # 一時ファイルに保存
             with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
                 json.dump(credentials_dict, f)
                 os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = f.name
-            
             print(f"Firebase認証情報を設定しました: {f.name}")
         except Exception as e:
             print(f"Firebase認証情報の設定に失敗: {e}")
 
-# Firestoreを使用するかどうかの判定
-if os.environ.get('USE_FIRESTORE', '').lower() == 'true':
-    # Firebase認証情報を設定
-    setup_firebase_credentials()
-    from app_firestore import app
-else:
-    from app import app
- 
+# Firestore専用
+setup_firebase_credentials()
+from app_firestore import app
+
 if __name__ == "__main__":
     app.run() 
