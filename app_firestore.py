@@ -67,11 +67,11 @@ def get_login_required_decorator():
 login_required_decorator = get_login_required_decorator()
 
 def load_user_data(username: str):
-    """特定ユーザーの勤怠データを読み込む"""
+    """特定ユーザーの勤怠データを読み込む（最新データを保証）"""
     attendance_mgr = get_attendance_manager()
     
     if attendance_mgr:
-        # Firestore版
+        # Firestore版 - 常に最新データを取得
         return attendance_mgr.get_user_attendance_data(username)
     else:
         # 従来版
@@ -816,32 +816,6 @@ def export_excel():
     
     return send_file(filename, as_attachment=True, download_name=filename)
 
-@app.route('/api/save_attendance', methods=['POST'])
-@login_required_decorator
-def api_save_attendance():
-    """API経由で勤怠データを保存"""
-    auth_mgr = get_auth_manager()
-    attendance_mgr = get_attendance_manager()
-    current_user = auth_mgr.get_current_user()
-    
-    request_data = request.get_json()
-    date_str = request_data.get('date')
-    field = request_data.get('field')
-    value = request_data.get('value')
-    
-    if attendance_mgr:
-        # Firestore版
-        success = attendance_mgr.update_user_attendance_data(current_user, date_str, field, value)
-        return jsonify({'success': success})
-    else:
-        # 従来版
-        data = load_data()
-        if date_str not in data:
-            data[date_str] = {}
-        data[date_str][field] = value
-        save_data(data)
-        return jsonify({'success': True})
-
 @app.route('/api/punch', methods=['POST'])
 @login_required_decorator
 def api_punch():
@@ -895,8 +869,17 @@ def api_punch():
             success = attendance_mgr.update_user_attendance_data(current_user, date_str, field, time_str)
             if success:
                 print("DEBUG: Firestore勤怠データ保存完了")
+                # 保存後に最新データを取得して返す
+                updated_data = attendance_mgr.get_user_attendance_data(current_user)
+                today_data = updated_data.get(date_str, {})
+                return jsonify({
+                    'success': True, 
+                    'time': time_str,
+                    'updated_data': today_data
+                })
             else:
                 print("ERROR: Firestore勤怠データ保存失敗")
+                return jsonify({'success': False, 'error': 'Failed to save data'}), 500
         else:
             # 従来版
             user_data = load_user_data(current_user)
@@ -909,8 +892,12 @@ def api_punch():
             
             save_user_data(current_user, user_data)
             print("DEBUG: ユーザーデータ保存完了")
-        
-        return jsonify({'success': True, 'time': time_str})
+            
+            return jsonify({
+                'success': True, 
+                'time': time_str,
+                'updated_data': user_data.get(date_str, {})
+            })
         
     except Exception as e:
         print(f"ERROR: 打刻API例外発生 - {str(e)}")
@@ -918,18 +905,18 @@ def api_punch():
         print(f"ERROR: トレースバック - {traceback.format_exc()}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@app.route('/api/save_field', methods=['POST'])
+@app.route('/api/save_attendance', methods=['POST'])
 @login_required_decorator
-def api_save_field():
-    """フィールド保存API"""
+def api_save_attendance():
+    """API経由で勤怠データを保存"""
     auth_mgr = get_auth_manager()
     attendance_mgr = get_attendance_manager()
     current_user = auth_mgr.get_current_user()
     
-    req = request.get_json()
-    date_str = req.get('date')
-    field = req.get('field')
-    value = req.get('value')
+    request_data = request.get_json()
+    date_str = request_data.get('date')
+    field = request_data.get('field')
+    value = request_data.get('value')
     
     if attendance_mgr:
         # Firestore版
@@ -943,6 +930,52 @@ def api_save_field():
         data[date_str][field] = value
         save_data(data)
         return jsonify({'success': True})
+
+@app.route('/api/save_field', methods=['POST'])
+@login_required_decorator
+def api_save_field():
+    """フィールド保存API"""
+    try:
+        auth_mgr = get_auth_manager()
+        attendance_mgr = get_attendance_manager()
+        current_user = auth_mgr.get_current_user()
+        
+        req = request.get_json()
+        date_str = req.get('date')
+        field = req.get('field')
+        value = req.get('value')
+        
+        if not date_str or not field:
+            return jsonify({'success': False, 'error': 'Missing parameters'}), 400
+        
+        if attendance_mgr:
+            # Firestore版
+            success = attendance_mgr.update_user_attendance_data(current_user, date_str, field, value)
+            if success:
+                # 保存後に最新データを取得
+                updated_data = attendance_mgr.get_user_attendance_data(current_user)
+                day_data = updated_data.get(date_str, {})
+                return jsonify({
+                    'success': True,
+                    'updated_data': day_data
+                })
+            else:
+                return jsonify({'success': False, 'error': 'Failed to save data'}), 500
+        else:
+            # 従来版
+            data = load_data()
+            if date_str not in data:
+                data[date_str] = {}
+            data[date_str][field] = value
+            save_data(data)
+            return jsonify({
+                'success': True,
+                'updated_data': data.get(date_str, {})
+            })
+            
+    except Exception as e:
+        print(f"ERROR: フィールド保存API例外発生 - {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 # データ移行エンドポイント（管理者用）
 @app.route('/admin/migrate_to_firestore', methods=['POST'])

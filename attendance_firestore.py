@@ -144,10 +144,6 @@ class FirestoreAttendanceManager:
         except Exception as e:
             logger.error(f"ローカルファイル保存失敗: {str(e)}")
     
-    def get_user_attendance_data(self, username: str) -> Dict[str, Any]:
-        """特定ユーザーの勤怠データを取得"""
-        return self.attendance_cache.get(username, {})
-    
     def update_user_attendance_data(self, username: str, date_str: str, field: str, value: str) -> bool:
         """ユーザーの勤怠データを更新"""
         try:
@@ -162,27 +158,130 @@ class FirestoreAttendanceManager:
             # データを更新
             self.attendance_cache[username][date_str][field] = value
             
-            # Firestoreに保存
-            success = self.save_attendance_data()
+            # Firestoreに即座に保存
+            success = self._save_single_user_data(username)
             
-            logger.info(f"勤怠データ更新: {username} - {date_str} - {field} = {value}")
+            if success:
+                logger.info(f"勤怠データ更新: {username} - {date_str} - {field} = {value}")
+                # 成功時は最新データでキャッシュを更新
+                self._refresh_user_cache(username)
+            else:
+                logger.error(f"勤怠データ更新失敗: {username} - {date_str} - {field} = {value}")
+                # 失敗時はキャッシュを元に戻す
+                if field in self.attendance_cache[username][date_str]:
+                    del self.attendance_cache[username][date_str][field]
+                    if not self.attendance_cache[username][date_str]:
+                        del self.attendance_cache[username][date_str]
+                    if not self.attendance_cache[username]:
+                        del self.attendance_cache[username]
+            
             return success
             
         except Exception as e:
             logger.error(f"勤怠データ更新失敗: {str(e)}")
             return False
     
+    def _save_single_user_data(self, username: str) -> bool:
+        """単一ユーザーのデータをFirestoreに保存"""
+        try:
+            if not self.firestore.is_available():
+                logger.warning("Firestore利用不可、ローカルファイルのみ保存")
+                self._save_to_local_file()
+                return True
+            
+            attendance_data = self.attendance_cache.get(username, {})
+            
+            user_doc_data = {
+                'username': username,
+                'attendance_data': attendance_data,
+                'last_updated': datetime.now().isoformat()
+            }
+            
+            # ユーザー名をドキュメントIDとして使用
+            result = self.firestore.create_document(
+                self.user_attendance_collection,
+                username,
+                user_doc_data
+            )
+            
+            if not result:
+                # 作成に失敗した場合は更新を試行
+                result = self.firestore.update_document(
+                    self.user_attendance_collection,
+                    username,
+                    user_doc_data
+                )
+            
+            # ローカルファイルにもバックアップ保存
+            self._save_to_local_file()
+            
+            # 結果をboolに変換
+            success = bool(result)
+            
+            if success:
+                logger.debug(f"Firestore保存成功: {username}")
+            else:
+                logger.error(f"Firestore保存失敗: {username}")
+            
+            return success
+            
+        except Exception as e:
+            logger.error(f"単一ユーザーデータ保存失敗: {str(e)}")
+            return False
+    
+    def _refresh_user_cache(self, username: str):
+        """特定ユーザーのキャッシュを最新データで更新"""
+        try:
+            if not self.firestore.is_available():
+                return
+            
+            user_doc = self.firestore.get_document(self.user_attendance_collection, username)
+            if user_doc:
+                attendance_data = user_doc.get('attendance_data', {})
+                self.attendance_cache[username] = attendance_data
+                logger.debug(f"ユーザーキャッシュ更新: {username}")
+            
+        except Exception as e:
+            logger.error(f"ユーザーキャッシュ更新失敗: {str(e)}")
+    
+    def get_user_attendance_data(self, username: str) -> Dict[str, Any]:
+        """特定ユーザーの勤怠データを取得（最新データを保証）"""
+        try:
+            # まずFirestoreから最新データを取得
+            if self.firestore.is_available():
+                user_doc = self.firestore.get_document(self.user_attendance_collection, username)
+                if user_doc:
+                    attendance_data = user_doc.get('attendance_data', {})
+                    # キャッシュも更新
+                    self.attendance_cache[username] = attendance_data
+                    logger.debug(f"最新データ取得: {username}")
+                    return attendance_data
+            
+            # Firestoreが利用できない場合はキャッシュから取得
+            return self.attendance_cache.get(username, {})
+            
+        except Exception as e:
+            logger.error(f"勤怠データ取得失敗: {str(e)}")
+            return self.attendance_cache.get(username, {})
+    
     def get_user_monthly_data(self, username: str, year: int, month: int) -> Dict[str, Any]:
-        """ユーザーの月別データを取得"""
+        """ユーザーの月別データを取得（最新データを保証）"""
+        # 最新データを取得
         user_data = self.get_user_attendance_data(username)
         monthly_data = {}
         
         try:
             for date_str, daily_data in user_data.items():
-                date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
-                if date_obj.year == year and date_obj.month == month:
-                    monthly_data[date_str] = daily_data
+                try:
+                    date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
+                    if date_obj.year == year and date_obj.month == month:
+                        monthly_data[date_str] = daily_data
+                except ValueError:
+                    # 日付形式が不正な場合はスキップ
+                    logger.warning(f"不正な日付形式: {date_str}")
+                    continue
             
+            logger.debug(f"月別データ取得: {username} - {year}/{month} - {len(monthly_data)}件")
             return monthly_data
             
         except Exception as e:

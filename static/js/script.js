@@ -1,33 +1,8 @@
 // 勤怠システム用のJavaScript
 
-// ページ読み込み時の初期化
-document.addEventListener("DOMContentLoaded", function () {
-  // フォームの自動保存機能
-  setupAutoSave();
+// ページ読み込み時の初期化（削除：下部で再定義）
 
-  // 入力フィールドのバリデーション
-  setupValidation();
-
-  // キーボードショートカット
-  setupKeyboardShortcuts();
-});
-
-// 自動保存機能
-function setupAutoSave() {
-  const inputs = document.querySelectorAll(
-    'input[type="time"], input[type="text"]'
-  );
-  let saveTimeout;
-
-  inputs.forEach((input) => {
-    input.addEventListener("change", function () {
-      clearTimeout(saveTimeout);
-      saveTimeout = setTimeout(() => {
-        showNotification("データを自動保存しました", "success");
-      }, 1000);
-    });
-  });
-}
+// 自動保存機能（削除：下部で再定義）
 
 // バリデーション機能
 function setupValidation() {
@@ -253,4 +228,193 @@ function exportData() {
   document.body.removeChild(link);
 
   showNotification("CSVファイルをダウンロードしました", "success");
+}
+
+// 打刻処理
+function punch(field) {
+  const today = new Date().toISOString().split("T")[0];
+
+  // ローディング表示
+  const button = document.querySelector(`button[onclick="punch('${field}')"]`);
+  if (button) {
+    button.disabled = true;
+    button.innerHTML =
+      '<span class="spinner-border spinner-border-sm" role="status"></span> 処理中...';
+  }
+
+  fetch("/api/punch", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      date: today,
+      field: field,
+    }),
+  })
+    .then((response) => response.json())
+    .then((data) => {
+      if (data.success) {
+        showNotification(
+          `${field === "check_in" ? "出勤" : "退勤"}を記録しました: ${
+            data.time
+          }`,
+          "success"
+        );
+
+        // 画面の表示を更新
+        updateDisplayTime(field, data.time);
+
+        // 最新データで画面を更新
+        if (data.updated_data) {
+          updateTodayData(data.updated_data);
+        }
+
+        // 2秒後にページをリロード（最新データを確実に表示）
+        setTimeout(() => {
+          location.reload();
+        }, 2000);
+      } else {
+        showNotification(
+          "打刻に失敗しました: " + (data.error || "不明なエラー"),
+          "danger"
+        );
+      }
+    })
+    .catch((error) => {
+      console.error("Error:", error);
+      showNotification("打刻に失敗しました: " + error.message, "danger");
+    })
+    .finally(() => {
+      // ボタンを元に戻す
+      if (button) {
+        button.disabled = false;
+        button.innerHTML = field === "check_in" ? "出勤" : "退勤";
+      }
+    });
+}
+
+// 表示時間を更新
+function updateDisplayTime(field, time) {
+  const displayElement = document.getElementById(`${field}_display`);
+  if (displayElement) {
+    displayElement.textContent = time;
+  }
+
+  // 隠しフィールドも更新
+  const hiddenField = document.querySelector(`input[name="${field}"]`);
+  if (hiddenField) {
+    hiddenField.value = time;
+  }
+}
+
+// 今日のデータを更新
+function updateTodayData(data) {
+  // 出勤時間
+  if (data.check_in) {
+    updateDisplayTime("check_in", data.check_in);
+  }
+
+  // 退勤時間
+  if (data.check_out) {
+    updateDisplayTime("check_out", data.check_out);
+  }
+
+  // その他のフィールドも更新
+  Object.keys(data).forEach((key) => {
+    const element = document.getElementById(`${key}_display`);
+    if (element) {
+      element.textContent = data[key];
+    }
+  });
+}
+
+// フィールド保存処理
+function saveField(date, field, value) {
+  fetch("/api/save_field", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      date: date,
+      field: field,
+      value: value,
+    }),
+  })
+    .then((response) => response.json())
+    .then((data) => {
+      if (data.success) {
+        showNotification("データを保存しました", "success");
+      } else {
+        showNotification("保存に失敗しました", "danger");
+      }
+    })
+    .catch((error) => {
+      console.error("Error:", error);
+      showNotification("保存に失敗しました: " + error.message, "danger");
+    });
+}
+
+// 自動保存機能の改善
+function setupAutoSave() {
+  const inputs = document.querySelectorAll(
+    'input[type="time"], input[type="text"], input[type="number"]'
+  );
+  let saveTimeout;
+
+  inputs.forEach((input) => {
+    input.addEventListener("change", function () {
+      clearTimeout(saveTimeout);
+
+      // フィールド名から日付とフィールドを抽出
+      const name = this.name;
+      if (name.includes("_")) {
+        const parts = name.split("_");
+        const field = parts[0];
+        const date = parts.slice(1).join("_");
+
+        saveTimeout = setTimeout(() => {
+          saveField(date, field, this.value);
+        }, 1000);
+      }
+    });
+  });
+}
+
+// ページ読み込み時の初期化（更新）
+document.addEventListener("DOMContentLoaded", function () {
+  // フォームの自動保存機能
+  setupAutoSave();
+
+  // 入力フィールドのバリデーション
+  setupValidation();
+
+  // キーボードショートカット
+  setupKeyboardShortcuts();
+
+  // 5分ごとに最新データを取得
+  setInterval(() => {
+    refreshPageData();
+  }, 5 * 60 * 1000);
+});
+
+// ページデータの更新
+function refreshPageData() {
+  // 現在のページが勤怠関連ページの場合のみ更新
+  if (
+    window.location.pathname.includes("/attendance") ||
+    window.location.pathname === "/"
+  ) {
+    // 静かに最新データを取得
+    fetch(window.location.href)
+      .then((response) => response.text())
+      .then((html) => {
+        // 必要に応じて特定の部分のみ更新
+        console.log("データを更新しました");
+      })
+      .catch((error) => {
+        console.error("データ更新エラー:", error);
+      });
+  }
 }

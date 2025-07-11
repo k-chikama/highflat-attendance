@@ -28,14 +28,16 @@
                 <button
                   type="button"
                   class="btn btn-success btn-lg"
-                  onclick="punchTime('{{ today }}', 'check_in')"
+                  onclick="punch('check_in')"
                 >
                   <i class="fas fa-sign-in-alt me-2"></i>出勤打刻
                 </button>
                 {% if check_in %}
                 <div class="mt-3">
                   <small class="text-muted">打刻時刻</small>
-                  <h5 class="text-success">{{ check_in }}</h5>
+                  <h5 class="text-success" id="check_in_display">
+                    {{ check_in }}
+                  </h5>
                 </div>
                 {% endif %}
               </div>
@@ -55,14 +57,16 @@
                 <button
                   type="button"
                   class="btn btn-warning btn-lg"
-                  onclick="punchTime('{{ today }}', 'check_out')"
+                  onclick="punch('check_out')"
                 >
                   <i class="fas fa-sign-out-alt me-2"></i>退勤打刻
                 </button>
                 {% if check_out %}
                 <div class="mt-3">
                   <small class="text-muted">打刻時刻</small>
-                  <h5 class="text-warning">{{ check_out }}</h5>
+                  <h5 class="text-warning" id="check_out_display">
+                    {{ check_out }}
+                  </h5>
                 </div>
                 {% endif %}
               </div>
@@ -106,32 +110,6 @@
     });
     document.getElementById("current-time").textContent = timeString;
     document.getElementById("current-time-2").textContent = timeString;
-  }
-
-  function punchTime(dateStr, field) {
-    fetch("/api/punch", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ date: dateStr, field: field }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success) {
-          // 打刻成功後、ページをリロードして打刻時刻を表示
-          alert(
-            `${field === "check_in" ? "出勤" : "退勤"}打刻が完了しました（${
-              data.time
-            }）`
-          );
-          window.location.reload();
-        } else {
-          alert("打刻に失敗しました");
-        }
-      })
-      .catch((error) => {
-        console.error("打刻エラー:", error);
-        alert("打刻に失敗しました");
-      });
   }
 
   // 1秒ごとに時刻を更新
