@@ -61,6 +61,28 @@
       </div>
     </footer>
 
+    <!-- モバイル用下部ナビゲーション -->
+    <nav class="bottom-nav d-lg-none">
+      <a
+        href="{{ url_for('index') }}"
+        class="{% if request.endpoint == 'index' %}active{% endif %}"
+      >
+        <i class="fas fa-clock"></i><br />打刻
+      </a>
+      <a
+        href="{{ url_for('attendance_info') }}"
+        class="{% if request.endpoint == 'attendance_info' %}active{% endif %}"
+      >
+        <i class="fas fa-chart-bar"></i><br />情報
+      </a>
+      <a
+        href="{{ url_for('attendance') }}"
+        class="{% if request.endpoint == 'attendance' %}active{% endif %}"
+      >
+        <i class="fas fa-edit"></i><br />入力
+      </a>
+    </nav>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
     {% block scripts %}{% endblock %}

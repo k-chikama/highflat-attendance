@@ -1,7 +1,7 @@
 {% extends "base.html" %} {% block title %}ホーム - 勤怠システム{% endblock %}
 {% block content %}
 <div class="row">
-  <div class="col-md-8 mx-auto">
+  <div class="col-md-8 col-12 mx-auto">
     <div class="card shadow">
       <div class="card-header bg-primary text-white">
         <h3 class="card-title mb-0">
@@ -10,19 +10,22 @@
       </div>
       <div class="card-body">
         <div class="row">
-          <div class="col-md-6 mb-4">
+          <div class="col-md-6 col-12 mb-4">
             <div class="card h-100 border-primary">
               <div class="card-body text-center">
                 <i class="fas fa-edit fa-3x text-primary mb-3"></i>
                 <h5 class="card-title">勤怠入力</h5>
                 <p class="card-text">日々の勤怠データを入力・管理できます。</p>
-                <a href="{{ url_for('attendance') }}" class="btn btn-primary">
+                <a
+                  href="{{ url_for('attendance') }}"
+                  class="btn btn-primary mb-2"
+                >
                   <i class="fas fa-edit me-1"></i>勤怠入力へ
                 </a>
               </div>
             </div>
           </div>
-          <div class="col-md-6 mb-4">
+          <div class="col-md-6 col-12 mb-4">
             <div class="card h-100 border-success">
               <div class="card-body text-center">
                 <i class="fas fa-file-excel fa-3x text-success mb-3"></i>
@@ -30,7 +33,10 @@
                 <p class="card-text">
                   月次勤怠表をExcelファイルで出力できます。
                 </p>
-                <a href="{{ url_for('attendance') }}" class="btn btn-success">
+                <a
+                  href="{{ url_for('attendance') }}"
+                  class="btn btn-success mb-2"
+                >
                   <i class="fas fa-download me-1"></i>Excel出力へ
                 </a>
               </div>

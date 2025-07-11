@@ -19,14 +19,14 @@
             <div class="card-body">
                 <!-- 年月選択 -->
                 <div class="row mb-4">
-                    <div class="col-md-6">
-                        <form method="GET" class="d-flex gap-2 align-items-center">
-                            <select name="year" class="form-select">
+                    <div class="col-md-6 col-12 mb-2 mb-md-0">
+                        <form method="GET" class="d-flex gap-2 align-items-center flex-wrap">
+                            <select name="year" class="form-select mb-2 mb-md-0">
                                 {% for y in range(2020, 2031) %}
                                 <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}年</option>
                                 {% endfor %}
                             </select>
-                            <select name="month" class="form-select">
+                            <select name="month" class="form-select mb-2 mb-md-0">
                                 {% for m in range(1, 13) %}
                                 <option value="{{ m }}" {% if m == month %}selected{% endif %}>{{ m }}月</option>
                                 {% endfor %}
@@ -34,7 +34,7 @@
                             <button type="submit" class="btn btn-primary">表示</button>
                         </form>
                     </div>
-                    <div class="col-md-6 text-end">
+                    <div class="col-md-6 col-12 text-end">
                         <span class="badge bg-info fs-6">
                             <i class="fas fa-user me-1"></i>{{ display_name }} ({{ current_user }})
                         </span>
@@ -43,7 +43,7 @@
 
                 <!-- 勤怠情報表示 -->
                 <div class="table-responsive">
-                    <table class="table table-bordered table-hover">
+                    <table class="table table-bordered table-hover align-middle mb-0">
                         <thead class="table-dark">
                             <tr>
                                 <th>日付</th>
@@ -109,7 +109,6 @@
                         </tfoot>
                     </table>
                 </div>
-                
                 <div class="text-center mt-4">
                     <a href="{{ url_for('attendance') }}?year={{ year }}&month={{ month }}&username={{ username }}" class="btn btn-primary">
                         <i class="fas fa-edit me-1"></i>勤怠入力に移動

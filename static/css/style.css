@@ -98,3 +98,97 @@ body {
 .alert-info {
   border-left: 4px solid #0dcaf0;
 }
+
+/* --- モバイルUI強化 --- */
+@media (max-width: 768px) {
+  body {
+    padding-bottom: 70px; /* 下部ナビ用余白 */
+  }
+  .navbar {
+    padding: 0.5rem 1rem;
+  }
+  .navbar-brand {
+    font-size: 1.2rem;
+  }
+  .navbar-nav .nav-link {
+    font-size: 1rem;
+    padding: 0.75rem 1rem;
+  }
+  .card {
+    margin-bottom: 1.2rem;
+    border-radius: 1rem;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  }
+  .card-header,
+  .card-body {
+    padding: 1rem 0.7rem;
+  }
+  .btn,
+  .btn-lg,
+  .btn-primary,
+  .btn-success,
+  .btn-warning,
+  .btn-info {
+    width: 100%;
+    font-size: 1.1rem;
+    padding: 1rem 0;
+    margin-bottom: 0.7rem;
+    border-radius: 0.8rem;
+  }
+  .form-control,
+  .form-select {
+    font-size: 1rem;
+    padding: 0.7rem 1rem;
+    border-radius: 0.7rem;
+  }
+  .table-responsive {
+    font-size: 0.95rem;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .table th,
+  .table td {
+    padding: 0.5rem 0.3rem;
+    font-size: 0.95rem;
+  }
+  .alert {
+    font-size: 0.95rem;
+    padding: 0.7rem 1rem;
+    border-radius: 0.7rem;
+  }
+  .badge {
+    font-size: 0.95rem;
+    padding: 0.5em 0.8em;
+    border-radius: 0.7rem;
+  }
+}
+
+/* 下部固定ナビ（必要に応じて） */
+@media (max-width: 768px) {
+  .bottom-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: #fff;
+    border-top: 1px solid #ddd;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    height: 56px;
+    z-index: 1000;
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.04);
+  }
+  .bottom-nav a {
+    flex: 1;
+    text-align: center;
+    color: #333;
+    font-size: 1.2rem;
+    padding: 0.5rem 0;
+    text-decoration: none;
+  }
+  .bottom-nav a.active {
+    color: #0d6efd;
+    font-weight: bold;
+  }
+}
