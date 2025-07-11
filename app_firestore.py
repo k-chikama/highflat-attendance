@@ -595,23 +595,44 @@ def auth():
             elif password != confirm_password:
                 print("ERROR: パスワード確認が一致しない")
                 return render_template('auth.html', error_message='パスワードが一致しません')
-            elif not username.replace('_', '').isalnum():
-                print("ERROR: ユーザー名に無効な文字が含まれる")
-                return render_template('auth.html', error_message='ユーザー名は英数字とアンダースコア（_）のみ使用できます')
-            else:
-                # ユーザー追加
-                print(f"DEBUG: ユーザー追加処理開始 - {username}")
-                add_result = auth_mgr.add_user(username, password, display_name)
-                print(f"DEBUG: ユーザー追加結果 - {add_result}")
+            
+            # 詳細なデバッグ情報を取得
+            try:
+                from auth_firestore import firestore_auth_manager
+                print(f"DEBUG: 認証キャッシュ内ユーザー数={len(firestore_auth_manager.users_cache)}")
+                print(f"DEBUG: 認証キャッシュ内ユーザー一覧={list(firestore_auth_manager.users_cache.keys())}")
                 
-                if add_result:
-                    print(f"DEBUG: ユーザー追加成功、ログイン処理開始 - {username}")
-                    auth_mgr.login_user(username)
-                    print(f"DEBUG: ログイン成功、リダイレクト - {username}")
-                    return redirect(url_for('index'))
-                else:
-                    print(f"ERROR: ユーザー追加失敗 - {username}")
-                    return render_template('auth.html', error_message=f'ユーザー「{username}」は既に存在します')
+                # Firestoreから直接確認
+                if firestore_manager.is_available():
+                    existing_user = firestore_manager.get_document('users', username)
+                    print(f"DEBUG: Firestore直接確認結果={existing_user is not None}")
+                    if existing_user:
+                        print(f"DEBUG: 既存ユーザー情報={existing_user}")
+                        
+            except Exception as debug_e:
+                print(f"DEBUG: デバッグ情報取得エラー={str(debug_e)}")
+            
+            # 新規ユーザー登録
+            print(f"DEBUG: ユーザー追加処理開始 - {username}")
+            if firestore_auth_manager.add_user(username, password, display_name):
+                print(f"DEBUG: ユーザー追加成功 - {username}")
+                return render_template('auth.html', 
+                                     success_message=f'ユーザー「{display_name}」を登録しました。ログインしてください。')
+            else:
+                print(f"DEBUG: ユーザー追加失敗 - {username}")
+                error_message = f'ユーザー名「{username}」は既に存在します。別のユーザー名を選択してください。'
+                
+                # 詳細なエラー情報を追加
+                try:
+                    if firestore_manager.is_available():
+                        existing_user = firestore_manager.get_document('users', username)
+                        if existing_user:
+                            existing_display_name = existing_user.get('display_name', 'unknown')
+                            error_message += f' (既存の表示名: {existing_display_name})'
+                except Exception as e:
+                    error_message += f' (エラー詳細確認失敗: {str(e)})'
+                
+                return render_template('auth.html', error_message=error_message)
     
     # 既にログイン済みの場合はホームにリダイレクト
     if auth_mgr.is_logged_in():
@@ -990,13 +1011,22 @@ def api_debug_firestore():
                 attendance_docs = firestore_manager.get_collection('user_attendance')
                 attendance_count = len(attendance_docs) if attendance_docs else 0
                 
+                # 認証管理の情報を取得
+                try:
+                    from auth_firestore import firestore_auth_manager
+                    auth_cache_size = len(firestore_auth_manager.users_cache)
+                    auth_cache_users = list(firestore_auth_manager.users_cache.keys())
+                except Exception as auth_e:
+                    auth_cache_size = 'Error'
+                    auth_cache_users = f'Error: {str(auth_e)}'
+                
                 debug_info.update({
                     'user_count': user_count,
                     'user_list': user_list,
                     'session_count': session_count,
                     'attendance_count': attendance_count,
-                    'auth_cache_size': len(auth_manager.users_cache),
-                    'auth_cache_users': list(auth_manager.users_cache.keys())
+                    'auth_cache_size': auth_cache_size,
+                    'auth_cache_users': auth_cache_users
                 })
                 
             except Exception as e:
