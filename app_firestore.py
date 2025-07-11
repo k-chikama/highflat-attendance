@@ -25,6 +25,13 @@ except (ImportError, TypeError) as e:
     JPHOLIDAY_AVAILABLE = False
 
 app = Flask(__name__)
+
+# 全テンプレートで現在の年を利用できるようにする
+@app.context_processor
+def inject_now():
+    from datetime import datetime
+    return {'now': datetime.now()}
+
 # セッション用の秘密鍵（環境変数から取得、なければランダム生成）
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
 
