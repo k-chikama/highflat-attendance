@@ -138,7 +138,10 @@
                             </tbody>
                             <tfoot>
                                 <tr class="table-info">
-                                    <td colspan="10" class="text-end fw-bold">月合計実働時間: <span id="total-worktime"></span></td>
+                                    <td colspan="10" class="text-end fw-bold">
+                                        月合計実働時間: <span id="total-worktime"></span> | 
+                                        交通費合計: <span id="total-travel-cost">0</span>円
+                                    </td>
                                 </tr>
                             </tfoot>
                         </table>
@@ -218,7 +221,10 @@ function autoSaveField(dateStr, field, value) {
     .then(res => res.json())
     .then(data => {
         if (data.success) {
-            // 通知など必要ならここで表示
+            // 交通費が変更された場合は合計を更新
+            if (field === 'travel_cost') {
+                updateTotalTravelCost();
+            }
         } else {
             alert('自動保存に失敗しました');
         }
@@ -295,6 +301,15 @@ function updateTotalWorkTime() {
     document.getElementById('total-worktime').textContent = formatWorkTime(total);
 }
 
+function updateTotalTravelCost() {
+    let total = 0;
+    document.querySelectorAll('input[name^="travel_cost_"]').forEach(input => {
+        const val = parseInt(input.value) || 0;
+        total += val;
+    });
+    document.getElementById('total-travel-cost').textContent = total;
+}
+
 // ページ読み込み時に既存データの計算を実行
 document.addEventListener('DOMContentLoaded', function() {
     // 全ての行の日付を抽出し、実働時間を再計算
@@ -302,11 +317,20 @@ document.addEventListener('DOMContentLoaded', function() {
     updateRowWorkTime("{{ item.date }}");
     {% endfor %}
     updateTotalWorkTime();
+    updateTotalTravelCost();
+    
     document.querySelectorAll('select, input[name^="break_time_"]').forEach(el => {
         el.addEventListener('change', function(){
             const date = this.name.match(/(\d{4}-\d{2}-\d{2})/);
             if (date) updateRowWorkTime(date[1]);
             updateTotalWorkTime();
+        });
+    });
+    
+    // 交通費入力フィールドにもイベントリスナーを追加
+    document.querySelectorAll('input[name^="travel_cost_"]').forEach(el => {
+        el.addEventListener('change', function(){
+            updateTotalTravelCost();
         });
     });
 });

@@ -87,22 +87,23 @@
                         </tbody>
                         <tfoot>
                             <tr class="table-info">
-                                {% set total_work = 0 %}
-                                {% set total_travel_cost = 0 %}
+                                {% set ns = namespace(total_work=0, total_travel_cost=0) %}
                                 {% for item in attendance_data %}
                                     {% set check_in = item.data.get('check_in', '') %}
                                     {% set check_out = item.data.get('check_out', '') %}
                                     {% set break_time = item.data.get('break_time', '1.0') %}
                                     {% set work_mins = (check_in and check_out) and ((check_out.split(':')[0]|int * 60 + check_out.split(':')[1]|int) - (check_in.split(':')[0]|int * 60 + check_in.split(':')[1]|int) - (break_time|float * 60)) or 0 %}
                                     {% if work_mins > 0 %}
-                                        {% set total_work = total_work + work_mins %}
+                                        {% set ns.total_work = ns.total_work + work_mins %}
                                     {% endif %}
                                     {% set travel_cost = item.data.get('travel_cost', '') %}
-                                    {% if travel_cost %}{% set total_travel_cost = total_travel_cost + (travel_cost|int) %}{% endif %}
+                                    {% if travel_cost and travel_cost != '' %}
+                                        {% set ns.total_travel_cost = ns.total_travel_cost + (travel_cost|int) %}
+                                    {% endif %}
                                 {% endfor %}
                                 <td colspan="10" class="text-end fw-bold">
-                                    月合計実働時間: {{ (total_work // 60)|int }}:{{ '%02d' % (total_work % 60) }} | 
-                                    交通費合計: {{ total_travel_cost }}円
+                                    月合計実働時間: {{ (ns.total_work // 60)|int }}:{{ '%02d' % (ns.total_work % 60) }} | 
+                                    交通費合計: {{ ns.total_travel_cost }}円
                                 </td>
                             </tr>
                         </tfoot>
