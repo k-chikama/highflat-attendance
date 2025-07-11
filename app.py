@@ -30,6 +30,12 @@ GIST_ID = os.environ.get('GIST_ID')
 GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN')
 USE_GIST = bool(GIST_ID and GITHUB_TOKEN)
 
+# 全テンプレートで現在の年を利用できるようにする
+@app.context_processor
+def inject_now():
+    from datetime import datetime
+    return {'now': datetime.now()}
+
 def load_user_data(username: str):
     """特定ユーザーの勤怠データを読み込む"""
     all_data = load_data()
