@@ -951,6 +951,53 @@ def migrate_to_firestore():
         print(f"ERROR: データ移行失敗 - {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/debug/firestore', methods=['GET'])
+def debug_firestore():
+    """Firestore状態をデバッグ用に表示"""
+    if not USE_FIRESTORE:
+        return jsonify({"error": "Firestore is disabled"}), 400
+    
+    try:
+        # ユーザー数を取得
+        users_docs = firestore_manager.get_collection('users')
+        user_count = len(users_docs) if users_docs else 0
+        
+        # ユーザー一覧を取得
+        user_list = []
+        if users_docs:
+            for doc in users_docs:
+                user_list.append({
+                    'username': doc.get('username', 'unknown'),
+                    'display_name': doc.get('display_name', 'unknown'),
+                    'created_at': doc.get('created_at', 'unknown')
+                })
+        
+        # セッション数を取得
+        sessions_docs = firestore_manager.get_collection('user_sessions')
+        session_count = len(sessions_docs) if sessions_docs else 0
+        
+        # 勤怠データ数を取得
+        attendance_docs = firestore_manager.get_collection('user_attendance')
+        attendance_count = len(attendance_docs) if attendance_docs else 0
+        
+        debug_info = {
+            'firestore_available': firestore_manager.is_available(),
+            'use_firestore': USE_FIRESTORE,
+            'firebase_project_id': os.environ.get('FIREBASE_PROJECT_ID', 'Not set'),
+            'has_credentials': 'GOOGLE_APPLICATION_CREDENTIALS_BASE64' in os.environ,
+            'user_count': user_count,
+            'user_list': user_list,
+            'session_count': session_count,
+            'attendance_count': attendance_count,
+            'auth_cache_size': len(auth_manager.users_cache),
+            'auth_cache_users': list(auth_manager.users_cache.keys())
+        }
+        
+        return jsonify(debug_info)
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 if __name__ == '__main__':
     print(f"DEBUG: Firestore利用可能 = {firestore_manager.is_available()}")
     print(f"DEBUG: USE_FIRESTORE = {USE_FIRESTORE}")
