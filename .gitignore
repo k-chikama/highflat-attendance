@@ -79,3 +79,4 @@ backup_*.json
 *.csv
 *.xlsx
 *.xls 
+.vercel

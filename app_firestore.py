@@ -581,21 +581,35 @@ def auth():
             display_name = request.form.get('display_name', '').strip()
             confirm_password = request.form.get('confirm_password', '')
             
+            print(f"DEBUG: 新規登録試行 - ユーザー名={username}, 表示名={display_name}")
+            print(f"DEBUG: Firestore利用可能={firestore_manager.is_available()}")
+            
             # バリデーション
             if not username or not password or not display_name:
+                print("ERROR: 必須項目が未入力")
                 return render_template('auth.html', error_message='すべての項目を入力してください')
             elif len(password) < 6:
+                print("ERROR: パスワードが短すぎる")
                 return render_template('auth.html', error_message='パスワードは6文字以上で設定してください')
             elif password != confirm_password:
+                print("ERROR: パスワード確認が一致しない")
                 return render_template('auth.html', error_message='パスワードが一致しません')
             elif not username.replace('_', '').isalnum():
+                print("ERROR: ユーザー名に無効な文字が含まれる")
                 return render_template('auth.html', error_message='ユーザー名は英数字とアンダースコア（_）のみ使用できます')
             else:
                 # ユーザー追加
-                if auth_mgr.add_user(username, password, display_name):
+                print(f"DEBUG: ユーザー追加処理開始 - {username}")
+                add_result = auth_mgr.add_user(username, password, display_name)
+                print(f"DEBUG: ユーザー追加結果 - {add_result}")
+                
+                if add_result:
+                    print(f"DEBUG: ユーザー追加成功、ログイン処理開始 - {username}")
                     auth_mgr.login_user(username)
+                    print(f"DEBUG: ログイン成功、リダイレクト - {username}")
                     return redirect(url_for('index'))
                 else:
+                    print(f"ERROR: ユーザー追加失敗 - {username}")
                     return render_template('auth.html', error_message=f'ユーザー「{username}」は既に存在します')
     
     # 既にログイン済みの場合はホームにリダイレクト

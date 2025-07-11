@@ -1,14 +1,14 @@
-import os
-import json
 import logging
 from typing import Dict, Any, Optional, List
 from google.cloud import firestore
 from google.oauth2 import service_account
 import firebase_admin
 from firebase_admin import credentials
+import os
+import json
 
 # ログ設定
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 class FirestoreManager:
@@ -87,26 +87,27 @@ class FirestoreManager:
             logger.error(f"ドキュメント作成失敗: {str(e)}")
             return None
     
-    def get_document(self, collection: str, document_id: str) -> Optional[Dict[str, Any]]:
+    def get_document(self, collection_name: str, document_id: str) -> Optional[Dict]:
         """ドキュメントを取得"""
-        if not self.is_available() or self.db is None:
-            logger.warning("Firestoreが利用できません")
-            return None
-        
         try:
-            doc_ref = self.db.collection(collection).document(document_id)
+            if not self.is_available() or self.db is None:
+                logger.warning(f"Firestore利用不可: {collection_name}/{document_id}")
+                return None
+            
+            logger.debug(f"ドキュメント取得試行: {collection_name}/{document_id}")
+            doc_ref = self.db.collection(collection_name).document(document_id)
             doc = doc_ref.get()
             
             if doc.exists:
                 data = doc.to_dict()
-                logger.info(f"ドキュメント取得: {collection}/{document_id}")
+                logger.debug(f"ドキュメント取得成功: {collection_name}/{document_id}")
                 return data
             else:
-                logger.info(f"ドキュメントが存在しません: {collection}/{document_id}")
+                logger.debug(f"ドキュメント存在しない: {collection_name}/{document_id}")
                 return None
                 
         except Exception as e:
-            logger.error(f"ドキュメント取得失敗: {str(e)}")
+            logger.error(f"ドキュメント取得失敗: {collection_name}/{document_id} - {str(e)}")
             return None
     
     def update_document(self, collection: str, document_id: str, data: Dict[str, Any]) -> bool:

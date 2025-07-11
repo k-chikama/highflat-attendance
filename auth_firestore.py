@@ -33,15 +33,16 @@ class FirestoreAuthManager:
     def load_users_cache(self):
         """Firestoreからユーザー情報をキャッシュに読み込み"""
         try:
+            # キャッシュをクリア
+            self.users_cache = {}
+            self.user_display_names_cache = {}
+            
             if not self.firestore.is_available():
-                logger.warning("Firestore利用不可、ローカルキャッシュを使用")
+                logger.warning("Firestore利用不可、空のキャッシュを使用")
                 return
             
             # 全ユーザー情報を取得
             users_docs = self.firestore.get_collection(self.users_collection)
-            
-            self.users_cache = {}
-            self.user_display_names_cache = {}
             
             for user_doc in users_docs:
                 username = user_doc.get('username')
@@ -56,6 +57,9 @@ class FirestoreAuthManager:
             
         except Exception as e:
             logger.error(f"ユーザーキャッシュロード失敗: {str(e)}")
+            # エラー時も空のキャッシュを保持
+            self.users_cache = {}
+            self.user_display_names_cache = {}
     
     def save_user_to_firestore(self, username: str, password_hash: str, display_name: str) -> bool:
         """Firestoreにユーザー情報を保存"""
@@ -91,18 +95,33 @@ class FirestoreAuthManager:
     
     def verify_password(self, username: str, password: str) -> bool:
         """ユーザー認証"""
+        logger.debug(f"認証試行: ユーザー名={username}")
+        logger.debug(f"キャッシュ内ユーザー数: {len(self.users_cache)}")
+        logger.debug(f"キャッシュ内ユーザー一覧: {list(self.users_cache.keys())}")
+        
         if username in self.users_cache:
-            return self.users_cache[username] == self.hash_password(password)
+            stored_hash = self.users_cache[username]
+            input_hash = self.hash_password(password)
+            result = stored_hash == input_hash
+            logger.debug(f"キャッシュ認証結果: {result}")
+            return result
         
         # キャッシュにない場合、Firestoreから直接取得
+        logger.debug(f"キャッシュにないため、Firestore直接確認: {username}")
         try:
             user_doc = self.firestore.get_document(self.users_collection, username)
             if user_doc and user_doc.get('password_hash'):
                 stored_hash = user_doc['password_hash']
-                return stored_hash == self.hash_password(password)
+                input_hash = self.hash_password(password)
+                result = stored_hash == input_hash
+                logger.debug(f"Firestore直接認証結果: {result}")
+                return result
+            else:
+                logger.debug(f"Firestoreにユーザー存在しない: {username}")
         except Exception as e:
             logger.error(f"パスワード認証エラー: {str(e)}")
         
+        logger.debug(f"認証失敗: {username}")
         return False
     
     def login_user(self, username: str) -> bool:
@@ -171,10 +190,28 @@ class FirestoreAuthManager:
     
     def add_user(self, username: str, password: str, display_name: str = '') -> bool:
         """新規ユーザーを追加"""
+        # 1. キャッシュをリフレッシュ
+        self.load_users_cache()
+        
+        # 2. キャッシュでの重複チェック
         if username in self.users_cache:
+            logger.warning(f"ユーザー重複（キャッシュ）: {username}")
             return False  # ユーザーが既に存在
         
-        # ユーザー情報をFirestoreに保存
+        # 3. Firestoreでの直接重複チェック（キャッシュが古い場合の対策）
+        if self.firestore.is_available():
+            try:
+                existing_user = self.firestore.get_document(self.users_collection, username)
+                if existing_user:
+                    logger.warning(f"ユーザー重複（Firestore直接）: {username}")
+                    # キャッシュも更新
+                    self.load_users_cache()
+                    return False
+            except Exception as e:
+                logger.error(f"重複チェック失敗: {str(e)}")
+                return False
+        
+        # 4. ユーザー情報をFirestoreに保存
         password_hash = self.hash_password(password)
         display_name = display_name or username
         
@@ -182,8 +219,10 @@ class FirestoreAuthManager:
             # キャッシュを更新
             self.users_cache[username] = password_hash
             self.user_display_names_cache[username] = display_name
+            logger.info(f"新規ユーザー登録成功: {username}")
             return True
         
+        logger.error(f"新規ユーザー登録失敗: {username}")
         return False
     
     def delete_user(self, username: str) -> bool:
